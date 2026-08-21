@@ -44,7 +44,7 @@
         <p>BeautyFlow מרכזת תורים, לקוחות ולידים לממשק אחד יפה וברור — כדי שתוכלי להקדיש יותר זמן למה שאת באמת אוהבת לעשות.</p>
         <div class="hero-actions"><a class="button" href="../?demo=1">לצפייה בדמו החי</a><span class="quiet">ללא התחייבות · מתאים גם לנייד</span></div>
       </div>
-      <div class="hero-visual"><img src="../assets/beauty-hero.png" alt="אווירת סטודיו יופי אלגנטית"><div class="floating">בוקר טוב, נועה ✨<small>3 תורים ממתינים לך היום</small></div></div>
+      <div class="hero-visual"><img src="../assets/beauty-hero.png" alt="אווירת סטודיו יופי אלגנטית"><div class="floating"><span id="promoGreeting">בוקר טוב</span>, נועה ✨<small>3 תורים ממתינים לך היום</small></div></div>
     </section>
     <div class="proof"><div class="wrap proof-grid"><div class="proof-item"><span>תורים</span>לוח יום מסודר וברור</div><div class="proof-item"><span>לקוחות</span>כל המידע במקום אחד</div><div class="proof-item"><span>לידים</span>אף פנייה לא הולכת לאיבוד</div></div></div>
     <section class="wrap"><div class="section-head"><h2>פחות בלגן. יותר עסק.</h2><p>כל מה שצריך כדי לנהל את היום שלך בביטחון, בלי טבלאות מסורבלות ובלי לרדוף אחרי הודעות.</p></div><div class="features"><article class="feature"><i>🗓️</i><h3>יומן חכם</h3><p>לוח תורים ברור לפי ימים ושעות, כדי שתדעי בדיוק מה קורה בעסק.</p></article><article class="feature"><i>🤍</i><h3>מאגר לקוחות</h3><p>פרטי לקוחות והיסטוריית טיפולים זמינים בכל רגע, גם מהנייד.</p></article><article class="feature"><i>✨</i><h3>מעקב אחרי פניות</h3><p>הופכים מתעניינים ללקוחות — בלי לשכוח אף ליד בדרך.</p></article></div></section>
@@ -53,5 +53,9 @@
     <section class="final"><div class="final-inner"><div class="eyebrow">זה הזמן לעשות סדר</div><h2>העסק שלך ראוי למקום משלו.</h2><p>היכנסי לדמו, בחרי את סביבת העסק שלך וגלי איך BeautyFlow מרגישה בפועל.</p><a class="button" href="../?demo=1">לכניסה לדמו החי</a></div></section>
   </main>
   <footer class="wrap footer">© BeautyFlow · ניהול עסקי נעים, פשוט ומדויק.</footer>
+  <script>
+    const hour = new Date().getHours();
+    document.getElementById('promoGreeting').textContent = hour < 5 || hour >= 22 ? 'לילה טוב' : hour < 12 ? 'בוקר טוב' : hour < 17 ? 'צהריים טובים' : 'ערב טוב';
+  </script>
 </body>
 </html>
