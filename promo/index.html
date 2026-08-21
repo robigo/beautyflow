@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="BeautyFlow - ניהול תורים, לקוחות ולידים לעסקי יופי וטיפוח.">
+  <title>BeautyFlow | העסק שלך, מסודר במקום אחד</title>
+  <style>
+    :root{--ink:#302331;--muted:#746879;--rose:#c95f91;--rose-dark:#9d416e;--cream:#fff9f6;--paper:#fffdfb;--line:#ead8df;--sage:#7d8974}
+    *{box-sizing:border-box} body{margin:0;color:var(--ink);background:var(--cream);font-family:Arial,"Noto Sans Hebrew",sans-serif;line-height:1.55}
+    .wrap{width:min(1120px,calc(100% - 40px));margin:auto}.nav{display:flex;justify-content:space-between;align-items:center;padding:23px 0}.brand{font-size:1.45rem;font-weight:800;letter-spacing:-.5px}.brand span{color:var(--rose)}
+    .nav a,.button{display:inline-flex;justify-content:center;align-items:center;text-decoration:none;font-weight:700;border-radius:999px;padding:13px 22px;transition:.2s}.nav a{color:var(--rose-dark);border:1px solid var(--line)}.button{background:var(--rose);color:white;border:0;box-shadow:0 12px 25px #c95f9140}.button:hover{background:var(--rose-dark);transform:translateY(-2px)}
+    .hero{display:grid;grid-template-columns:1.03fr .97fr;gap:42px;align-items:center;padding:55px 0 80px}.eyebrow{color:var(--rose-dark);font-size:.92rem;font-weight:800;letter-spacing:.4px}.hero h1{font-size:clamp(2.5rem,5vw,4.65rem);line-height:1.05;margin:13px 0 20px;letter-spacing:-2px}.hero p{font-size:1.18rem;color:var(--muted);max-width:540px;margin:0 0 28px}.hero-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.quiet{color:var(--sage);font-size:.9rem;font-weight:bold}.hero-visual{height:470px;border-radius:28px;overflow:hidden;position:relative;box-shadow:0 23px 50px #52394933;background:#563a4d}.hero-visual img{width:100%;height:100%;object-fit:cover}.hero-visual:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#2f203758,transparent 70%)}.floating{position:absolute;z-index:1;bottom:24px;right:24px;background:#fffdfbed;border:1px solid white;border-radius:17px;padding:14px 18px;box-shadow:0 12px 25px #3b273333;font-weight:bold}.floating small{display:block;color:var(--muted);font-weight:normal}
+    .proof{background:#f5e8e7;border-block:1px solid var(--line)}.proof-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;padding:24px 0}.proof-item{text-align:center;font-weight:bold}.proof-item span{display:block;color:var(--rose-dark);font-size:1.5rem}
+    section{padding:83px 0}.section-head{max-width:680px;margin:0 auto 38px;text-align:center}.section-head h2{font-size:clamp(2rem,4vw,3rem);margin:0 0 10px;letter-spacing:-1px}.section-head p{margin:0;color:var(--muted);font-size:1.08rem}.features{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.feature{background:var(--paper);padding:28px;border:1px solid var(--line);border-radius:20px}.feature i{font-style:normal;display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:#fbe4ed;font-size:1.4rem}.feature h3{margin:16px 0 6px;font-size:1.23rem}.feature p{margin:0;color:var(--muted)}
+    .flow{background:#342733;color:#fff5f3}.flow .section-head p{color:#decfd9}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.step{border:1px solid #71586a;border-radius:20px;padding:25px}.step b{color:#f7a7c8;font-size:1.15rem}.step h3{margin:12px 0 6px}.step p{margin:0;color:#decfd9}
+    .businesses{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.business{min-height:132px;border-radius:17px;overflow:hidden;position:relative;background:#45323d}.business img{width:100%;height:100%;position:absolute;object-fit:cover}.business:after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#21171ed9,transparent)}.business span{position:absolute;z-index:1;bottom:14px;right:14px;color:white;font-weight:bold}
+    .final{padding:75px 24px;text-align:center;background:linear-gradient(135deg,#f3d8e3,#f8e9d9)}.final-inner{max-width:720px;margin:auto}.final h2{font-size:clamp(2rem,4vw,3.15rem);line-height:1.15;margin:0 0 15px}.final p{color:#65505e;margin:0 auto 25px;font-size:1.1rem}.footer{padding:25px 0;color:var(--muted);font-size:.9rem;text-align:center}
+    @media(max-width:760px){.wrap{width:min(100% - 28px,560px)}.nav{padding:16px 0}.nav a{padding:10px 14px;font-size:.9rem}.hero{grid-template-columns:1fr;padding:30px 0 50px;gap:28px}.hero h1{letter-spacing:-1px}.hero-visual{height:360px;order:-1}.proof-grid,.features,.steps{grid-template-columns:1fr}.proof-grid{gap:10px}.proof-item{padding:7px}.businesses{grid-template-columns:1fr 1fr}.business{min-height:115px}section{padding:57px 0}.final{padding:55px 20px}}
+  </style>
+</head>
+<body>
+  <header class="wrap nav"><div class="brand">Beauty<span>Flow</span></div><a href="../?demo=1">כניסה לדמו</a></header>
+  <main>
+    <section class="wrap hero">
+      <div>
+        <div class="eyebrow">ניהול עסקי, בדרך נעימה ופשוטה</div>
+        <h1>העסק שלך,<br>מסודר במקום אחד.</h1>
+        <p>BeautyFlow מרכזת תורים, לקוחות ולידים לממשק אחד יפה וברור — כדי שתוכלי להקדיש יותר זמן למה שאת באמת אוהבת לעשות.</p>
+        <div class="hero-actions"><a class="button" href="../?demo=1">לצפייה בדמו החי</a><span class="quiet">ללא התחייבות · מתאים גם לנייד</span></div>
+      </div>
+      <div class="hero-visual"><img src="../assets/beauty-hero.png" alt="אווירת סטודיו יופי אלגנטית"><div class="floating">בוקר טוב, נועה ✨<small>3 תורים ממתינים לך היום</small></div></div>
+    </section>
+    <div class="proof"><div class="wrap proof-grid"><div class="proof-item"><span>תורים</span>לוח יום מסודר וברור</div><div class="proof-item"><span>לקוחות</span>כל המידע במקום אחד</div><div class="proof-item"><span>לידים</span>אף פנייה לא הולכת לאיבוד</div></div></div>
+    <section class="wrap"><div class="section-head"><h2>פחות בלגן. יותר עסק.</h2><p>כל מה שצריך כדי לנהל את היום שלך בביטחון, בלי טבלאות מסורבלות ובלי לרדוף אחרי הודעות.</p></div><div class="features"><article class="feature"><i>🗓️</i><h3>יומן חכם</h3><p>לוח תורים ברור לפי ימים ושעות, כדי שתדעי בדיוק מה קורה בעסק.</p></article><article class="feature"><i>🤍</i><h3>מאגר לקוחות</h3><p>פרטי לקוחות והיסטוריית טיפולים זמינים בכל רגע, גם מהנייד.</p></article><article class="feature"><i>✨</i><h3>מעקב אחרי פניות</h3><p>הופכים מתעניינים ללקוחות — בלי לשכוח אף ליד בדרך.</p></article></div></section>
+    <section class="flow"><div class="wrap"><div class="section-head"><h2>מתחילים בשלושה צעדים</h2><p>אין צורך בידע טכני. בוחרים סוג עסק, מוסיפים פרטים — ומתחילים לנהל.</p></div><div class="steps"><article class="step"><b>01</b><h3>בוחרים את העסק</h3><p>מספרה, ציפורניים, קוסמטיקה, ריסים, צמות ועוד.</p></article><article class="step"><b>02</b><h3>מוסיפים לקוחות ותורים</h3><p>כל הפרטים החשובים מסודרים במקום שמרגיש טבעי.</p></article><article class="step"><b>03</b><h3>נהנים משקט</h3><p>יודעים מה קורה היום, מי חוזרת, ואיפה נמצאת כל פנייה.</p></article></div></div></section>
+    <section class="wrap"><div class="section-head"><h2>נבנתה לעסקים של אנשים</h2><p>BeautyFlow מתאימה לעסקים אישיים שמנהלים קשר קרוב עם הלקוחות שלהם.</p></div><div class="businesses"><div class="business"><img src="../assets/beauty-hero.png" alt="סטודיו יופי"><span>יופי וטיפוח</span></div><div class="business"><img src="../assets/braids-hero.png" alt="קליעת צמות"><span>צמות ועיצוב שיער</span></div><div class="business"><img src="../assets/clinic-hero.png" alt="קליניקה"><span>קליניקות וטיפולים</span></div><div class="business"><img src="../assets/fitness-hero.png" alt="סטודיו כושר"><span>סטודיואים ומאמנים</span></div></div></section>
+    <section class="final"><div class="final-inner"><div class="eyebrow">זה הזמן לעשות סדר</div><h2>העסק שלך ראוי למקום משלו.</h2><p>היכנסי לדמו, בחרי את סביבת העסק שלך וגלי איך BeautyFlow מרגישה בפועל.</p><a class="button" href="../?demo=1">לכניסה לדמו החי</a></div></section>
+  </main>
+  <footer class="wrap footer">© BeautyFlow · ניהול עסקי נעים, פשוט ומדויק.</footer>
+</body>
+</html>
