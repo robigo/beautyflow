@@ -271,7 +271,7 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
   $('#enterPlatform').onclick=window.enterPlatform;
   document.querySelector('[data-screen="platform"]').onclick=async()=>{if(!isPlatformAdmin)return;show('platform');await loadApiPlatformDashboard()};
   const savedClientLink=window.clientLink;
-  window.clientLink=()=>{const business=businesses.find(item=>item.id===activeBusinessId);const url=new URL(window.location.href);url.search='';url.searchParams.set('booking','1');url.searchParams.set('business',business?.publicId||business?.id||activeBusinessId);return url.toString()};
+  window.clientLink=()=>{const business=businesses.find(item=>item.id===activeBusinessId);const url=new URL('booking.html',window.location.href);url.searchParams.set('business',business?.publicId||business?.id||activeBusinessId);return url.toString()};
   if(demoMode)return;
   const mountSchedulingControls=()=>{
     if($('#schedulingControls'))return;

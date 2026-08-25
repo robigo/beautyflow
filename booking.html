@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>קביעת תור | BeautyFlow</title>
+  <style>
+    :root{font-family:Arial,sans-serif;color:#2d2230;background:#fff4f8}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 38%,#fff 0,#fff5f8 31%,#f6dce7 100%)}.card{width:min(480px,100%);background:#fff;border-radius:24px;padding:34px;box-shadow:0 22px 60px #8c526633}h1{margin:0 0 8px;font-size:30px}.muted{color:#957985;margin:0 0 26px}.field{display:grid;gap:7px;margin:14px 0}.field label{font-weight:700;font-size:14px}input,select,button{font:inherit}input,select{width:100%;padding:13px;border:1px solid #e6cbd7;border-radius:10px;background:#fff}button{width:100%;margin-top:12px;padding:14px;border:0;border-radius:10px;background:#ce5f91;color:#fff;font-weight:800;cursor:pointer}button:disabled{opacity:.55;cursor:wait}.notice{display:none;margin-top:18px;padding:13px;border-radius:10px;background:#fff0d3;color:#6e4c00;line-height:1.5}.notice.show{display:block}.success{background:#e5f5eb;color:#1d6d42}.loading{text-align:center;color:#957985}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1 id="businessName">קביעת תור</h1>
+    <p class="muted" id="businessType">טוען את פרטי העסק…</p>
+    <form id="bookingForm" hidden>
+      <div class="field"><label for="name">שם מלא</label><input id="name" required autocomplete="name"></div>
+      <div class="field"><label for="phone">טלפון</label><input id="phone" required inputmode="tel" autocomplete="tel"></div>
+      <div class="field"><label for="service">שירות</label><select id="service" required></select></div>
+      <div class="field"><label for="resource">איש צוות / משאב</label><select id="resource" required></select></div>
+      <div class="field"><label for="date">תאריך</label><input id="date" type="date" required></div>
+      <div class="field"><label for="time">שעה פנויה</label><select id="time" required disabled><option>בחר/י תאריך</option></select></div>
+      <button id="submit" type="submit">קביעת תור</button>
+    </form>
+    <p id="notice" class="notice"></p>
+  </main>
+  <script>
+    (()=>{
+      const api='https://beautyflow-ihl7.vercel.app',id=new URLSearchParams(location.search).get('business');
+      const $=selector=>document.querySelector(selector),notice=(text,success=false)=>{const el=$('#notice');el.textContent=text;el.className='notice show'+(success?' success':'')};
+      const json=async(path,options={})=>{const response=await fetch(api+path,{headers:{'Content-Type':'application/json'},...options});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error||'אירעה תקלה. נסה/י שוב.');return body};
+      const localDate=value=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jerusalem',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
+      const localTime=value=>new Intl.DateTimeFormat('he-IL',{timeZone:'Asia/Jerusalem',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(value));
+      if(!id){notice('הקישור אינו תקין. יש לבקש קישור חדש מהעסק.');return}
+      const service=$('#service'),resource=$('#resource'),date=$('#date'),time=$('#time'),form=$('#bookingForm'),submit=$('#submit');
+      const loadSlots=async()=>{if(!date.value||!service.value||!resource.value)return;time.disabled=true;time.innerHTML='<option>טוען שעות פנויות…</option>';try{const result=await json(`/api/public/businesses/${encodeURIComponent(id)}/availability?serviceId=${encodeURIComponent(service.value)}&resourceId=${encodeURIComponent(resource.value)}&date=${date.value}`);time.innerHTML=result.slots.length?result.slots.map(slot=>`<option value="${slot}">${localTime(slot)}</option>`).join(''):'<option value="">אין שעות פנויות בתאריך זה</option>';time.disabled=!result.slots.length}catch(error){notice(error.message)}};
+      json(`/api/public/businesses/${encodeURIComponent(id)}`).then(business=>{
+        $('#businessName').textContent=business.name;$('#businessType').textContent=business.businessType;
+        service.innerHTML=business.services.map(row=>`<option value="${row.id}">${row.name} · ₪${Number(row.price).toLocaleString('he-IL')}</option>`).join('');
+        resource.innerHTML=business.resources.map(row=>`<option value="${row.id}">${row.name} · ${row.resourceType}</option>`).join('')||'<option value="">אין משאב זמין</option>';
+        date.min=localDate(new Date());form.hidden=false;
+      }).catch(error=>notice(error.message));
+      service.onchange=loadSlots;resource.onchange=loadSlots;date.onchange=loadSlots;
+      form.onsubmit=async event=>{event.preventDefault();if(!time.value)return;submit.disabled=true;try{await json(`/api/public/businesses/${encodeURIComponent(id)}/appointments`,{method:'POST',body:JSON.stringify({customerName:$('#name').value.trim(),phone:$('#phone').value.trim(),serviceId:service.value,resourceId:resource.value,startsAt:time.value})});form.hidden=true;notice('התור נקבע בהצלחה. נתראה בקרוב!',true)}catch(error){notice(error.message);loadSlots()}finally{submit.disabled=false}};
+    })();
+  </script>
+</body>
+</html>
