@@ -173,6 +173,9 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
   const savedClientLink=window.clientLink;
   window.clientLink=()=>{const business=businesses.find(item=>item.id===activeBusinessId);if(!business?.publicId)return savedClientLink();const url=new URL(window.location.href);url.search='';url.searchParams.set('public','1');url.searchParams.set('business',business.publicId);return url.toString()};
   if(demoMode)return;
+  // החלפה פיזית של הכפתור מסירה מאזין ישן של Supabase שרץ בשלב capture.
+  const legacyCreateButton=$('#createBusiness');
+  legacyCreateButton.replaceWith(legacyCreateButton.cloneNode(true));
   $('#ownerAuthSwitch').onclick=()=>setAuthMode(!isRegisterMode);
   $('#ownerAuthForm').onsubmit=async event=>{
     event.preventDefault();
