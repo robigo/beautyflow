@@ -121,6 +121,42 @@ const braidsPortraitVisualTheme=setBusinessVisualTheme;setBusinessVisualTheme=fu
 const mobileExperienceStyle=document.createElement('style');mobileExperienceStyle.textContent=`@media(max-width:700px){html,body{width:100%;max-width:100%;overflow-x:hidden}.app{min-height:100dvh}.mobilebar{gap:10px;padding:10px 12px;min-height:58px}.mobilebar b{max-width:43vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobilebar select{width:48vw;max-width:none;min-height:38px;font-size:14px}.main{padding:16px 12px 28px}.title-row{gap:12px;margin-bottom:16px}.title-row h1{font-size:24px;line-height:1.2}.subtitle{font-size:14px}.title-row>.btn,.section-actions>.btn{width:100%;min-height:44px}.kpis{gap:10px;margin-bottom:12px}.kpi{padding:14px}.kpi b{font-size:23px}.grid2,.reports{gap:12px}.card{padding:15px;border-radius:14px;margin-bottom:12px}.card h2{font-size:17px}.business-hero{min-height:132px!important;margin-bottom:18px!important;padding:18px!important;border-radius:17px!important;background-position:center}.business-hero h2{font-size:23px!important}.business-hero .eyebrow{font-size:12px}.appointment{grid-template-columns:62px minmax(0,1fr)!important;gap:8px;padding:11px 0}.appointment .badge{grid-column:2;justify-self:start}.appointment .muted{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.actions{width:100%;flex-wrap:wrap}.actions .btn{flex:1 1 145px;min-height:44px}.section-actions{width:100%}.section-actions input,.section-actions select{width:100%;min-height:44px}.form-grid{gap:11px}.field input,.field select,.field textarea{font-size:16px;min-height:44px}.table-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px}.table{min-width:610px;font-size:13px}.table th,.table td{padding:10px 9px}.notice,.empty{padding:16px}.month-calendar{padding:12px!important}.month-calendar-head{gap:8px;align-items:flex-start}.month-calendar-head h2{font-size:18px;line-height:1.3}.month-calendar-nav button{min-width:38px;min-height:38px}.month-weekdays,.month-days{gap:3px!important}.month-weekdays span{font-size:10px!important;padding:2px!important}.month-day{min-height:52px!important;padding:4px!important;font-size:12px}.day-number{width:23px;height:23px}.day-count{font-size:8px!important;margin-top:3px!important}.calendar-day-details{font-size:13px;line-height:1.7;padding:12px!important}.demo-selector{display:block!important;overflow-y:auto;padding:12px!important}.demo-selector-card{width:100%!important;max-width:520px;margin:0 auto;padding:22px 14px!important;border-radius:20px!important}.demo-selector-card h1{font-size:24px;line-height:1.2}.demo-selector-grid{grid-template-columns:1fr!important;gap:10px!important;margin-top:18px!important}.demo-choice{min-height:96px!important;padding:16px!important;font-size:16px!important;display:flex;align-items:center}.demo-new-business{min-height:48px!important;justify-content:center}.auth-gate{padding:12px}.auth-box{padding:24px 18px;border-radius:18px}.auth-box h1{font-size:27px}.public-page{padding:14px 10px}.public-box{padding:20px 16px;border-radius:18px}.public-box h1{font-size:25px}.whatsapp{position:static!important;width:100%;min-height:46px}.stat-row{gap:12px;align-items:flex-start}.stat-row>*{min-width:0}.stat-row span:last-child{overflow-wrap:anywhere}}@media(max-width:380px){.main{padding:13px 9px 24px}.kpis{grid-template-columns:1fr}.mobilebar b{max-width:40vw}.mobilebar select{width:53vw}.business-hero{min-height:118px!important}.demo-selector-card{padding:18px 12px!important}.demo-choice{font-size:15px!important}}`;document.head.append(mobileExperienceStyle);
 </script>
 <script>
+/* פתיחה עצמאית של דף הלקוחות: אינה תלויה במצב ההתחברות של ממשק הניהול. */
+(()=>{
+  const params=new URLSearchParams(location.search);
+  const publicId=params.get('business');
+  if(params.get('public')!=='1'||!publicId)return;
+  const apiBase='https://beautyflow-ihl7.vercel.app';
+  const request=async(path,options={})=>{
+    const response=await fetch(apiBase+path,{headers:{'Content-Type':'application/json'},...options});
+    const payload=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(payload.error||'לא ניתן לטעון את דף קביעת התור.');
+    return payload;
+  };
+  const localDate=value=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jerusalem',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
+  const localTime=value=>new Intl.DateTimeFormat('he-IL',{timeZone:'Asia/Jerusalem',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(value));
+  const showError=message=>{const box=document.querySelector('#publicSuccess');box.textContent=message;box.classList.remove('hide')};
+  request(`/api/public/businesses/${encodeURIComponent(publicId)}`).then(business=>{
+    document.querySelector('#authGate').classList.add('hide');
+    document.querySelector('.app').classList.add('hide');
+    document.querySelector('#publicPage').classList.add('active');
+    document.querySelector('#publicBusinessName').textContent=business.name;
+    document.querySelector('#publicBusinessType').textContent=business.businessType;
+    const service=document.querySelector('#publicLeadService'),resource=document.querySelector('#publicBookingResource'),date=document.querySelector('#publicBookingDate'),time=document.querySelector('#publicBookingTime'),form=document.querySelector('#publicLeadForm');
+    service.innerHTML=business.services.map(item=>`<option value="${item.id}">${item.name} · ₪${Number(item.price).toLocaleString('he-IL')}</option>`).join('');
+    resource.innerHTML=business.resources.map(item=>`<option value="${item.id}">${item.name} · ${item.resourceType}</option>`).join('')||'<option value="">אין משאב זמין כרגע</option>';
+    date.min=localDate(new Date());
+    const refreshSlots=async()=>{
+      if(!service.value||!resource.value||!date.value){time.disabled=true;time.innerHTML='<option>בחר/י שירות, משאב ותאריך</option>';return}
+      time.disabled=true;time.innerHTML='<option>טוען שעות פנויות…</option>';
+      try{const result=await request(`/api/public/businesses/${encodeURIComponent(publicId)}/availability?serviceId=${encodeURIComponent(service.value)}&resourceId=${encodeURIComponent(resource.value)}&date=${date.value}`);time.innerHTML=result.slots.length?result.slots.map(slot=>`<option value="${slot}">${localTime(slot)}</option>`).join(''):'<option value="">אין שעות פנויות בתאריך זה</option>';time.disabled=!result.slots.length}catch(error){time.innerHTML='<option value="">לא ניתן לטעון שעות פנויות</option>';showError(error.message)}
+    };
+    service.onchange=refreshSlots;resource.onchange=refreshSlots;date.onchange=refreshSlots;
+    form.onsubmit=async event=>{event.preventDefault();if(!time.value){showError('יש לבחור שעה פנויה.');return}try{const appointment=await request(`/api/public/businesses/${encodeURIComponent(publicId)}/appointments`,{method:'POST',body:JSON.stringify({customerName:document.querySelector('#publicLeadName').value.trim(),phone:document.querySelector('#publicLeadPhone').value.trim(),serviceId:service.value,resourceId:resource.value,startsAt:time.value})});form.classList.add('hide');showError(`התור נקבע בהצלחה ל־${localDate(appointment.startsAt)} בשעה ${localTime(appointment.startsAt)}.`)}catch(error){showError(error.message);refreshSlots()}};
+  }).catch(error=>showError(error.message));
+})();
+</script>
+<script>
 /* שכבת החיבור לשרת BeautyFlow. כתובת זו ציבורית ואינה כוללת סוד. */
 (()=>{
   const API_BASE='https://beautyflow-ihl7.vercel.app';
@@ -296,6 +332,28 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
   }
   const token=localStorage.getItem(authKey);
   if(token){try{const payload=JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));currentUser={id:payload.sub,email:payload.email};isPlatformAdmin=Boolean(payload.isPlatformAdmin);showApiWorkspace().catch(()=>localStorage.removeItem(authKey))}catch{localStorage.removeItem(authKey)}}
+})();
+</script>
+<script>
+/* מפעיל מחדש את הקישור הציבורי לאחר טעינת כל שכבות הממשק. */
+(()=>{
+  const params=new URLSearchParams(location.search),publicId=params.get('business');
+  if(params.get('public')!=='1'||!publicId)return;
+  const base='https://beautyflow-ihl7.vercel.app',byId=id=>document.querySelector(id);
+  const request=async(path,options={})=>{const response=await fetch(base+path,{headers:{'Content-Type':'application/json'},...options});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'לא ניתן לטעון את דף קביעת התור.');return data};
+  const dateText=value=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jerusalem',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
+  const timeText=value=>new Intl.DateTimeFormat('he-IL',{timeZone:'Asia/Jerusalem',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(value));
+  const fail=message=>{const box=byId('#publicSuccess');box.textContent=message;box.classList.remove('hide')};
+  request(`/api/public/businesses/${encodeURIComponent(publicId)}`).then(business=>{
+    byId('#authGate').classList.add('hide');byId('.app').classList.add('hide');byId('#publicPage').classList.add('active');
+    byId('#publicBusinessName').textContent=business.name;byId('#publicBusinessType').textContent=business.businessType;
+    const service=byId('#publicLeadService'),resource=byId('#publicBookingResource'),date=byId('#publicBookingDate'),time=byId('#publicBookingTime'),form=byId('#publicLeadForm');
+    service.innerHTML=business.services.map(item=>`<option value="${item.id}">${item.name} · ₪${Number(item.price).toLocaleString('he-IL')}</option>`).join('');
+    resource.innerHTML=business.resources.map(item=>`<option value="${item.id}">${item.name} · ${item.resourceType}</option>`).join('')||'<option value="">אין משאב זמין כרגע</option>';date.min=dateText(new Date());
+    const slots=async()=>{if(!service.value||!resource.value||!date.value){time.disabled=true;time.innerHTML='<option>בחר/י שירות, משאב ותאריך</option>';return}time.disabled=true;time.innerHTML='<option>טוען שעות פנויות…</option>';try{const result=await request(`/api/public/businesses/${encodeURIComponent(publicId)}/availability?serviceId=${encodeURIComponent(service.value)}&resourceId=${encodeURIComponent(resource.value)}&date=${date.value}`);time.innerHTML=result.slots.length?result.slots.map(slot=>`<option value="${slot}">${timeText(slot)}</option>`).join(''):'<option value="">אין שעות פנויות בתאריך זה</option>';time.disabled=!result.slots.length}catch(error){time.innerHTML='<option value="">לא ניתן לטעון שעות פנויות</option>';fail(error.message)}};
+    service.onchange=slots;resource.onchange=slots;date.onchange=slots;
+    form.onsubmit=async event=>{event.preventDefault();if(!time.value){fail('יש לבחור שעה פנויה.');return}try{const appointment=await request(`/api/public/businesses/${encodeURIComponent(publicId)}/appointments`,{method:'POST',body:JSON.stringify({customerName:byId('#publicLeadName').value.trim(),phone:byId('#publicLeadPhone').value.trim(),serviceId:service.value,resourceId:resource.value,startsAt:time.value})});form.classList.add('hide');fail(`התור נקבע בהצלחה ל־${dateText(appointment.startsAt)} בשעה ${timeText(appointment.startsAt)}.`)}catch(error){fail(error.message);slots()}};
+  }).catch(error=>fail(error.message));
 })();
 </script>
 </body></html>
