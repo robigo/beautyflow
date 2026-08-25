@@ -25,7 +25,7 @@ async function ownedBusiness(userId, businessId) {
   return rows[0];
 }
 
-app.get('/health', asyncRoute(async (_req, res) => { await pool.query('select 1'); res.json({ ok: true }); }));
+app.get(['/health', '/api/health'], asyncRoute(async (_req, res) => { await pool.query('select 1'); res.json({ ok: true }); }));
 
 app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const { email, password } = credentials.parse(req.body);
