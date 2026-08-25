@@ -17,7 +17,7 @@ export async function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(actual, Buffer.from(expected, 'hex'));
 }
 
-export const signToken = (user) => jwt.sign({ sub: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
+export const signToken = (user) => jwt.sign({ sub: user.id, email: user.email, isPlatformAdmin: Boolean(user.is_platform_admin) }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
 export function requireAuth(req, res, next) {
   const token = req.get('authorization')?.replace(/^Bearer\s+/i, '');

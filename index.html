@@ -159,6 +159,8 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
   };
   const showApiWorkspace=async()=>{
     await loadBusinesses();
+    document.querySelectorAll('.platform-only').forEach(item=>item.classList.toggle('hide',!isPlatformAdmin));
+    document.body.classList.toggle('platform-admin',isPlatformAdmin);
     $('#ownerAuth').classList.add('hide');$('#workspacePicker').classList.remove('hide');$('#authError').textContent='';
     $('#businessSelect').innerHTML=businesses.map(item=>`<option value="${item.id}">${esc(item.name)} · ${esc(item.type)}</option>`).join('')||'<option value="">עדיין אין עסק. אפשר ליצור אחד למטה.</option>';
     $('#businessSelect').value=activeBusinessId;
@@ -170,6 +172,17 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
     $('#accountName').textContent=business?.name||'BeautyFlow';
     $('#authGate').classList.add('hide');render();show('dashboard');
   };
+  const loadApiPlatformDashboard=async()=>{
+    const overview=await api('/api/admin/overview');
+    $('#platformBusinessCount').textContent=overview.counts.businesses;
+    $('#platformLeadCount').textContent='—';
+    $('#platformAppointmentCount').textContent='—';
+    $('#platformBusinessRows').innerHTML=overview.businesses.map(item=>`<tr><td>${esc(item.name)}</td><td>${esc(item.businessType)}</td><td>${new Date(item.createdAt).toLocaleDateString('he-IL')}</td><td>פעיל</td></tr>`).join('')||'<tr><td colspan="4" class="empty">עדיין אין עסקים במערכת.</td></tr>';
+  };
+  window.loadPlatformDashboard=loadApiPlatformDashboard;
+  window.enterPlatform=async()=>{if(!isPlatformAdmin)return;$('#authGate').classList.add('hide');show('platform');await loadApiPlatformDashboard()};
+  $('#enterPlatform').onclick=window.enterPlatform;
+  document.querySelector('[data-screen="platform"]').onclick=async()=>{if(!isPlatformAdmin)return;show('platform');await loadApiPlatformDashboard()};
   const savedClientLink=window.clientLink;
   window.clientLink=()=>{const business=businesses.find(item=>item.id===activeBusinessId);if(!business?.publicId)return savedClientLink();const url=new URL(window.location.href);url.search='';url.searchParams.set('public','1');url.searchParams.set('business',business.publicId);return url.toString()};
   if(demoMode)return;
@@ -204,7 +217,7 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
     const button=$('#ownerAuthSubmit');button.disabled=true;$('#authError').textContent='';
     try{
       const result=await api(isRegisterMode?'/api/auth/register':'/api/auth/login',{method:'POST',auth:false,body:{email:$('#ownerEmail').value.trim(),password:$('#ownerPassword').value}});
-      localStorage.setItem(authKey,result.token);currentUser=result.user;await showApiWorkspace();
+      localStorage.setItem(authKey,result.token);currentUser=result.user;isPlatformAdmin=Boolean(result.user.isPlatformAdmin);await showApiWorkspace();
     }catch(error){$('#authError').textContent=error.message}finally{button.disabled=false}
   };
   $('#enterBusiness').onclick=()=>openBusiness($('#businessSelect').value).catch(error=>$('#authError').textContent=error.message);
@@ -220,7 +233,7 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
       $('#newBusinessName').value='';await openBusiness(business.id);
     }catch(error){$('#authError').textContent=error.message}
   };
-  $('#logoutButton').onclick=()=>{localStorage.removeItem(authKey);currentUser=null;$('#authGate').classList.remove('hide');$('#workspacePicker').classList.add('hide');$('#ownerAuth').classList.remove('hide');setAuthMode(false)};
+  $('#logoutButton').onclick=()=>{localStorage.removeItem(authKey);currentUser=null;isPlatformAdmin=false;document.querySelectorAll('.platform-only').forEach(item=>item.classList.add('hide'));$('#authGate').classList.remove('hide');$('#workspacePicker').classList.add('hide');$('#ownerAuth').classList.remove('hide');setAuthMode(false)};
   $('#appointmentForm').onsubmit=async event=>{
     event.preventDefault();
     const service=data.services?.find(item=>item.name===$('#bookTreatment').value);
@@ -252,7 +265,7 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
     return;
   }
   const token=localStorage.getItem(authKey);
-  if(token){try{const payload=JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));currentUser={id:payload.sub,email:payload.email};showApiWorkspace().catch(()=>localStorage.removeItem(authKey))}catch{localStorage.removeItem(authKey)}}
+  if(token){try{const payload=JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));currentUser={id:payload.sub,email:payload.email};isPlatformAdmin=Boolean(payload.isPlatformAdmin);showApiWorkspace().catch(()=>localStorage.removeItem(authKey))}catch{localStorage.removeItem(authKey)}}
 })();
 </script>
 </body></html>

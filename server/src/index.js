@@ -24,6 +24,8 @@ const timeBlockInput = z.object({ resourceId: z.string().uuid().optional(), star
 const publicAppointmentInput = z.object({ customerName: z.string().trim().min(2).max(100), phone: z.string().trim().min(4).max(40), serviceId: z.string().uuid(), resourceId: z.string().uuid(), startsAt: z.string().datetime() });
 
 const asyncRoute = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+const platformAdminEmail = process.env.PLATFORM_ADMIN_EMAIL?.trim().toLowerCase();
+const isPlatformAdminEmail = email => Boolean(platformAdminEmail && email.toLowerCase() === platformAdminEmail);
 async function ownedBusiness(userId, businessId) {
   const { rows } = await pool.query('select id, name, business_type, schema_name, public_id from public.businesses where id = $1 and owner_id = $2', [businessId, userId]);
   return rows[0];
@@ -37,7 +39,7 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('begin');
-    const { rows } = await client.query('insert into public.app_users (email, password_hash) values ($1, $2) returning id, email', [email, passwordHash]);
+    const { rows } = await client.query('insert into public.app_users (email, password_hash, is_platform_admin) values ($1, $2, $3) returning id, email, is_platform_admin', [email, passwordHash, isPlatformAdminEmail(email)]);
     await client.query('commit');
     res.status(201).json({ token: signToken(rows[0]), user: rows[0] });
   } catch (error) {
@@ -49,10 +51,18 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
 
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const { email, password } = credentials.parse(req.body);
-  const { rows } = await pool.query('select id, email, password_hash from public.app_users where email = $1', [email]);
+  const { rows } = await pool.query('select id, email, password_hash, is_platform_admin from public.app_users where email = $1', [email]);
   const user = rows[0];
   if (!user || !(await verifyPassword(password, user.password_hash))) return res.status(401).json({ error: 'אימייל או סיסמה שגויים' });
-  res.json({ token: signToken(user), user: { id: user.id, email: user.email } });
+  res.json({ token: signToken(user), user: { id: user.id, email: user.email, isPlatformAdmin: user.is_platform_admin } });
+}));
+
+app.get('/api/admin/overview', requireAuth, asyncRoute(async (req, res) => {
+  const { rows: admins } = await pool.query('select is_platform_admin from public.app_users where id = $1', [req.user.sub]);
+  if (!admins[0]?.is_platform_admin) return res.status(403).json({ error: 'נדרשת הרשאת אדמין ראשי' });
+  const { rows: businesses } = await pool.query('select id, name, business_type as "businessType", public_id as "publicId", created_at as "createdAt" from public.businesses order by created_at desc');
+  const { rows: users } = await pool.query('select count(*)::int as count from public.app_users');
+  res.json({ counts: { users: users[0].count, businesses: businesses.length }, businesses });
 }));
 
 app.get('/api/businesses', requireAuth, asyncRoute(async (req, res) => {

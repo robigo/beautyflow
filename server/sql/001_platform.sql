@@ -6,6 +6,7 @@ create table if not exists public.app_users (
   password_hash text not null,
   created_at timestamptz not null default now()
 );
+alter table public.app_users add column if not exists is_platform_admin boolean not null default false;
 
 create table if not exists public.businesses (
   id uuid primary key default gen_random_uuid(),

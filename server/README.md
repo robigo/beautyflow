@@ -20,7 +20,7 @@
 1. צרו פרויקט Free ב-Neon ובחרו אזור קרוב למשתמשים.
 2. העתיקו מ-Neon את **pooled connection string** עם `sslmode=require`.
 3. ב-Vercel לחצו `Add New` → `Project`, חברו את מאגר GitHub, והגדירו את **Root Directory** ל-`server`.
-4. הוסיפו ב-Vercel את `DATABASE_URL` מ-Neon ואת `CLIENT_ORIGIN` בערך `https://robigo.github.io`. הגדירו גם `JWT_SECRET` כמחרוזת אקראית ארוכה.
+4. הוסיפו ב-Vercel את `DATABASE_URL` מ-Neon ואת `CLIENT_ORIGIN` בערך `https://robigo.github.io`. הגדירו גם `JWT_SECRET` כמחרוזת אקראית ארוכה. להגדרת אדמין ראשי, הוסיפו Secret בשם `PLATFORM_ADMIN_EMAIL` עם כתובת האימייל של המנהל.
 5. הפריסה מריצה את `vercel-build`, ולכן מיגרציית הפלטפורמה נוצרת אוטומטית. בסיום, העתיקו את כתובת ה-API של Vercel לחיבור הממשק.
 
 הקובץ `src/index.js` הוא נקודת הכניסה של Vercel ל-Express. כך אין צורך ב-Render או בפרטי תשלום רק כדי לפרוס את ה-API הראשוני.
