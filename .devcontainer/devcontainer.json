@@ -1,0 +1,13 @@
+{
+  "name": "BeautyFlow",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "forwardPorts": [3000, 5432],
+  "postCreateCommand": "cd server && cp .env.example .env && sed -i 's|postgresql://postgres:postgres@localhost:5432/beautyflow|postgresql://beautyflow:beautyflow_dev_only@db:5432/beautyflow|' .env && corepack enable && pnpm install && pnpm run db:migrate",
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "ms-azuretools.vscode-docker"]
+    }
+  }
+}
