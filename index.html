@@ -125,7 +125,7 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
 (()=>{
   const params=new URLSearchParams(location.search);
   const publicId=params.get('business');
-  if(params.get('public')!=='1'||!publicId)return;
+  if(!publicId||(params.get('public')!=='1'&&params.get('booking')!=='1'))return;
   const apiBase='https://beautyflow-ihl7.vercel.app';
   const request=async(path,options={})=>{
     const response=await fetch(apiBase+path,{headers:{'Content-Type':'application/json'},...options});
@@ -221,7 +221,7 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
   $('#enterPlatform').onclick=window.enterPlatform;
   document.querySelector('[data-screen="platform"]').onclick=async()=>{if(!isPlatformAdmin)return;show('platform');await loadApiPlatformDashboard()};
   const savedClientLink=window.clientLink;
-  window.clientLink=()=>{const business=businesses.find(item=>item.id===activeBusinessId);if(!business?.publicId)return savedClientLink();const url=new URL(window.location.href);url.search='';url.searchParams.set('public','1');url.searchParams.set('business',business.publicId);return url.toString()};
+  window.clientLink=()=>{const business=businesses.find(item=>item.id===activeBusinessId);const url=new URL(window.location.href);url.search='';url.searchParams.set('booking','1');url.searchParams.set('business',business?.publicId||business?.id||activeBusinessId);return url.toString()};
   if(demoMode)return;
   const mountSchedulingControls=()=>{
     if($('#schedulingControls'))return;
@@ -338,7 +338,7 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
 /* מפעיל מחדש את הקישור הציבורי לאחר טעינת כל שכבות הממשק. */
 (()=>{
   const params=new URLSearchParams(location.search),publicId=params.get('business');
-  if(params.get('public')!=='1'||!publicId)return;
+  if(!publicId||(params.get('public')!=='1'&&params.get('booking')!=='1'))return;
   const base='https://beautyflow-ihl7.vercel.app',byId=id=>document.querySelector(id);
   const request=async(path,options={})=>{const response=await fetch(base+path,{headers:{'Content-Type':'application/json'},...options});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'לא ניתן לטעון את דף קביעת התור.');return data};
   const dateText=value=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jerusalem',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
