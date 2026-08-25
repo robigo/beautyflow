@@ -23,7 +23,7 @@
 4. הוסיפו ב-Vercel את `DATABASE_URL` מ-Neon ואת `CLIENT_ORIGIN` בערך `https://robigo.github.io`. הגדירו גם `JWT_SECRET` כמחרוזת אקראית ארוכה.
 5. הפריסה מריצה את `vercel-build`, ולכן מיגרציית הפלטפורמה נוצרת אוטומטית. בסיום, העתיקו את כתובת ה-API של Vercel לחיבור הממשק.
 
-הקובץ `api/index.js` הוא נקודת הכניסה של Vercel ל-Express. כך אין צורך ב-Render או בפרטי תשלום רק כדי לפרוס את ה-API הראשוני.
+הקובץ `src/index.js` הוא נקודת הכניסה של Vercel ל-Express. כך אין צורך ב-Render או בפרטי תשלום רק כדי לפרוס את ה-API הראשוני.
 
 ## מודל בידוד הנתונים
 

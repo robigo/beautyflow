@@ -8,8 +8,8 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
     "db:migrate": "node src/migrate.js",
     "vercel-build": "node src/migrate.js"
   },
