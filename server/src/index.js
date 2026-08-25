@@ -21,6 +21,10 @@ const leadInput = z.object({ fullName: z.string().trim().min(2).max(100), phone:
 const resourceInput = z.object({ name: z.string().trim().min(2).max(100), resourceType: z.string().trim().min(2).max(60).default('איש צוות'), capacity: z.coerce.number().int().min(1).max(20).default(1) });
 const serviceInput = z.object({ name: z.string().trim().min(2).max(100), price: z.coerce.number().min(0), durationMinutes: z.coerce.number().int().min(15).max(480), preparationMinutes: z.coerce.number().int().min(0).max(180).default(0), bufferMinutes: z.coerce.number().int().min(0).max(180).default(0), resourceIds: z.array(z.string().uuid()).default([]) });
 const timeBlockInput = z.object({ resourceId: z.string().uuid().optional(), startsAt: z.string().datetime(), endsAt: z.string().datetime(), reason: z.string().trim().max(300).optional() }).refine(value => new Date(value.endsAt) > new Date(value.startsAt), { message: 'זמן הסיום חייב להיות אחרי זמן ההתחלה' });
+const businessHoursInput = z.array(z.object({ dayOfWeek: z.coerce.number().int().min(0).max(6), opensAt: z.string().regex(/^\d{2}:\d{2}$/).optional(), closesAt: z.string().regex(/^\d{2}:\d{2}$/).optional(), isClosed: z.boolean() })).length(7).superRefine((rows, context) => {
+  if (new Set(rows.map(row => row.dayOfWeek)).size !== 7) context.addIssue({ code: z.ZodIssueCode.custom, message: 'יש להגדיר כל יום בשבוע פעם אחת' });
+  rows.filter(row => !row.isClosed && (!row.opensAt || !row.closesAt || row.opensAt >= row.closesAt)).forEach((_, index) => context.addIssue({ code: z.ZodIssueCode.custom, path: [index], message: 'שעות הפעילות אינן תקינות' }));
+});
 const publicAppointmentInput = z.object({ customerName: z.string().trim().min(2).max(100), phone: z.string().trim().min(4).max(40), serviceId: z.string().uuid(), resourceId: z.string().uuid(), startsAt: z.string().datetime() });
 
 const asyncRoute = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -184,6 +188,18 @@ app.post('/api/businesses/:businessId/time-blocks', requireAuth, asyncRoute(asyn
   const item = timeBlockInput.parse(req.body);
   const row = await withTenant(business.schema_name, async client => (await client.query('insert into time_blocks (resource_id, starts_at, ends_at, reason) values ($1,$2,$3,$4) returning id, resource_id as "resourceId", starts_at as "startsAt", ends_at as "endsAt", reason', [item.resourceId ?? null, item.startsAt, item.endsAt, item.reason ?? null])).rows[0]);
   res.status(201).json(row);
+}));
+
+app.put('/api/businesses/:businessId/hours', requireAuth, asyncRoute(async (req, res) => {
+  const business = await ownedBusiness(req.user.sub, req.params.businessId);
+  if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
+  const hours = businessHoursInput.parse(req.body);
+  await withTenant(business.schema_name, async client => {
+    for (const row of hours) {
+      await client.query('insert into business_hours (day_of_week, opens_at, closes_at, is_closed) values ($1,$2,$3,$4) on conflict (day_of_week) do update set opens_at = excluded.opens_at, closes_at = excluded.closes_at, is_closed = excluded.is_closed', [row.dayOfWeek, row.isClosed ? null : row.opensAt, row.isClosed ? null : row.closesAt, row.isClosed]);
+    }
+  });
+  res.status(204).end();
 }));
 
 app.get('/api/public/businesses/:publicId', asyncRoute(async (req, res) => {
