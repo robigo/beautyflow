@@ -203,7 +203,8 @@ app.put('/api/businesses/:businessId/hours', requireAuth, asyncRoute(async (req,
 }));
 
 app.get('/api/public/businesses/:publicId', asyncRoute(async (req, res) => {
-  const { rows } = await pool.query('select id, name, business_type, schema_name from public.businesses where public_id = $1', [req.params.publicId]);
+  // מאפשר גם לקישורים ישנים שנוצרו עם מזהה העסק הפנימי להמשיך לעבוד.
+  const { rows } = await pool.query('select id, name, business_type, schema_name from public.businesses where public_id = $1 or id = $1', [req.params.publicId]);
   const business = rows[0];
   if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
   const { services, resources } = await withTenant(business.schema_name, async client => ({
@@ -215,7 +216,7 @@ app.get('/api/public/businesses/:publicId', asyncRoute(async (req, res) => {
 
 app.get('/api/public/businesses/:publicId/availability', asyncRoute(async (req, res) => {
   const query = z.object({ serviceId: z.string().uuid(), resourceId: z.string().uuid(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(req.query);
-  const { rows } = await pool.query('select schema_name from public.businesses where public_id = $1', [req.params.publicId]);
+  const { rows } = await pool.query('select schema_name from public.businesses where public_id = $1 or id = $1', [req.params.publicId]);
   if (!rows[0]) return res.status(404).json({ error: 'העסק לא נמצא' });
   const result = await withTenant(rows[0].schema_name, async client => {
     const [serviceResult, resourceResult, hoursResult, settingsResult] = await Promise.all([
@@ -249,7 +250,7 @@ app.get('/api/public/businesses/:publicId/availability', asyncRoute(async (req, 
 app.post('/api/public/businesses/:publicId/appointments', asyncRoute(async (req, res) => {
   const item = publicAppointmentInput.parse(req.body);
   assertFutureAppointment(item.startsAt);
-  const { rows } = await pool.query('select schema_name from public.businesses where public_id = $1', [req.params.publicId]);
+  const { rows } = await pool.query('select schema_name from public.businesses where public_id = $1 or id = $1', [req.params.publicId]);
   if (!rows[0]) return res.status(404).json({ error: 'העסק לא נמצא' });
   const appointment = await withTenant(rows[0].schema_name, async client => {
     const service = (await client.query('select id, name, price, duration_minutes, buffer_minutes from services where id = $1 and is_active = true', [item.serviceId])).rows[0];
@@ -270,7 +271,7 @@ app.post('/api/public/businesses/:publicId/appointments', asyncRoute(async (req,
 
 app.post('/api/public/businesses/:publicId/leads', asyncRoute(async (req, res) => {
   const item = leadInput.parse(req.body);
-  const { rows } = await pool.query('select schema_name from public.businesses where public_id = $1', [req.params.publicId]);
+  const { rows } = await pool.query('select schema_name from public.businesses where public_id = $1 or id = $1', [req.params.publicId]);
   if (!rows[0]) return res.status(404).json({ error: 'העסק לא נמצא' });
   const lead = await withTenant(rows[0].schema_name, async client => (await client.query('insert into leads (full_name, phone, service_name, message) values ($1,$2,$3,$4) returning id, created_at as "createdAt"', [item.fullName, item.phone, item.serviceName ?? null, item.message ?? null])).rows[0]);
   res.status(201).json(lead);
