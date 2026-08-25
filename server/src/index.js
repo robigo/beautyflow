@@ -108,24 +108,30 @@ app.post('/api/businesses/:businessId/appointments', requireAuth, asyncRoute(asy
   if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
   const item = appointmentInput.parse(req.body);
   const row = await withTenant(business.schema_name, async client => {
+    let resourceId = item.resourceId;
+    if (!resourceId) {
+      const availableResources = (await client.query('select id from resources where is_active = true order by created_at')).rows;
+      if (availableResources.length === 1) resourceId = availableResources[0].id;
+      else throw Object.assign(new Error('יש לבחור איש צוות, חדר או משאב עבור התור'), { statusCode: 400 });
+    }
     const service = item.serviceId ? (await client.query('select id, name, price, duration_minutes, buffer_minutes from services where id = $1 and is_active = true', [item.serviceId])).rows[0] : null;
     if (item.serviceId && !service) return null;
     const durationMinutes = service?.duration_minutes ?? 60;
     const endsAt = new Date(new Date(item.startsAt).getTime() + (durationMinutes + (service?.buffer_minutes ?? 0)) * 60000).toISOString();
-    if (item.resourceId) {
-      const resource = (await client.query('select id from resources where id = $1 and is_active = true', [item.resourceId])).rows[0];
+    if (resourceId) {
+      const resource = (await client.query('select id from resources where id = $1 and is_active = true', [resourceId])).rows[0];
       if (!resource) throw Object.assign(new Error('המשאב אינו זמין'), { statusCode: 400 });
       if (service) {
         const mapping = await client.query('select 1 from service_resources where service_id = $1 limit 1', [service.id]);
-        if (mapping.rows[0] && !(await client.query('select 1 from service_resources where service_id = $1 and resource_id = $2', [service.id, item.resourceId])).rows[0]) {
+        if (mapping.rows[0] && !(await client.query('select 1 from service_resources where service_id = $1 and resource_id = $2', [service.id, resourceId])).rows[0]) {
           throw Object.assign(new Error('המשאב אינו מבצע שירות זה'), { statusCode: 400 });
         }
       }
-      const block = (await client.query('select 1 from time_blocks where (resource_id = $1 or resource_id is null) and starts_at < $3 and ends_at > $2 limit 1', [item.resourceId, item.startsAt, endsAt])).rows[0];
+      const block = (await client.query('select 1 from time_blocks where (resource_id = $1 or resource_id is null) and starts_at < $3 and ends_at > $2 limit 1', [resourceId, item.startsAt, endsAt])).rows[0];
       if (block) throw Object.assign(new Error('הזמן שנבחר חסום'), { statusCode: 409 });
     }
     const customer = item.phone ? await client.query('insert into customers (full_name, phone) values ($1, $2) on conflict (phone) do update set full_name = excluded.full_name returning id', [item.customerName, item.phone]) : { rows: [] };
-    const result = await client.query('insert into appointments (customer_id, customer_name, phone, service_id, service_name, resource_id, price, starts_at, ends_at, notes, status) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *', [customer.rows[0]?.id ?? null, item.customerName, item.phone ?? null, service?.id ?? null, service?.name ?? item.serviceName, item.resourceId ?? null, service?.price ?? item.price ?? 0, item.startsAt, endsAt, item.notes ?? null, item.status ?? 'ממתין']);
+    const result = await client.query('insert into appointments (customer_id, customer_name, phone, service_id, service_name, resource_id, price, starts_at, ends_at, notes, status) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *', [customer.rows[0]?.id ?? null, item.customerName, item.phone ?? null, service?.id ?? null, service?.name ?? item.serviceName, resourceId, service?.price ?? item.price ?? 0, item.startsAt, endsAt, item.notes ?? null, item.status ?? 'ממתין']);
     return result.rows[0];
   });
   if (!row) return res.status(400).json({ error: 'השירות אינו זמין' });
