@@ -120,4 +120,105 @@ const braidsVisualTheme=setBusinessVisualTheme;setBusinessVisualTheme=function()
 const braidsPortraitVisualTheme=setBusinessVisualTheme;setBusinessVisualTheme=function(){braidsPortraitVisualTheme();if(data?.settings?.businessType==='קליעת צמות אפריקאיות'){const image=$('#businessVisualHero img');if(image)image.src=new URL('assets/braids-hero.png',document.baseURI).href}};const braidsPortraitDemoStyle=document.createElement('style');braidsPortraitDemoStyle.textContent=`.demo-choice[data-demo-type="קליעת צמות אפריקאיות"]{background-image:linear-gradient(90deg,rgba(35,20,28,.68),rgba(35,20,28,.18)),url('assets/braids-hero.png')!important}`;document.head.append(braidsPortraitDemoStyle);
 const mobileExperienceStyle=document.createElement('style');mobileExperienceStyle.textContent=`@media(max-width:700px){html,body{width:100%;max-width:100%;overflow-x:hidden}.app{min-height:100dvh}.mobilebar{gap:10px;padding:10px 12px;min-height:58px}.mobilebar b{max-width:43vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobilebar select{width:48vw;max-width:none;min-height:38px;font-size:14px}.main{padding:16px 12px 28px}.title-row{gap:12px;margin-bottom:16px}.title-row h1{font-size:24px;line-height:1.2}.subtitle{font-size:14px}.title-row>.btn,.section-actions>.btn{width:100%;min-height:44px}.kpis{gap:10px;margin-bottom:12px}.kpi{padding:14px}.kpi b{font-size:23px}.grid2,.reports{gap:12px}.card{padding:15px;border-radius:14px;margin-bottom:12px}.card h2{font-size:17px}.business-hero{min-height:132px!important;margin-bottom:18px!important;padding:18px!important;border-radius:17px!important;background-position:center}.business-hero h2{font-size:23px!important}.business-hero .eyebrow{font-size:12px}.appointment{grid-template-columns:62px minmax(0,1fr)!important;gap:8px;padding:11px 0}.appointment .badge{grid-column:2;justify-self:start}.appointment .muted{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.actions{width:100%;flex-wrap:wrap}.actions .btn{flex:1 1 145px;min-height:44px}.section-actions{width:100%}.section-actions input,.section-actions select{width:100%;min-height:44px}.form-grid{gap:11px}.field input,.field select,.field textarea{font-size:16px;min-height:44px}.table-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px}.table{min-width:610px;font-size:13px}.table th,.table td{padding:10px 9px}.notice,.empty{padding:16px}.month-calendar{padding:12px!important}.month-calendar-head{gap:8px;align-items:flex-start}.month-calendar-head h2{font-size:18px;line-height:1.3}.month-calendar-nav button{min-width:38px;min-height:38px}.month-weekdays,.month-days{gap:3px!important}.month-weekdays span{font-size:10px!important;padding:2px!important}.month-day{min-height:52px!important;padding:4px!important;font-size:12px}.day-number{width:23px;height:23px}.day-count{font-size:8px!important;margin-top:3px!important}.calendar-day-details{font-size:13px;line-height:1.7;padding:12px!important}.demo-selector{display:block!important;overflow-y:auto;padding:12px!important}.demo-selector-card{width:100%!important;max-width:520px;margin:0 auto;padding:22px 14px!important;border-radius:20px!important}.demo-selector-card h1{font-size:24px;line-height:1.2}.demo-selector-grid{grid-template-columns:1fr!important;gap:10px!important;margin-top:18px!important}.demo-choice{min-height:96px!important;padding:16px!important;font-size:16px!important;display:flex;align-items:center}.demo-new-business{min-height:48px!important;justify-content:center}.auth-gate{padding:12px}.auth-box{padding:24px 18px;border-radius:18px}.auth-box h1{font-size:27px}.public-page{padding:14px 10px}.public-box{padding:20px 16px;border-radius:18px}.public-box h1{font-size:25px}.whatsapp{position:static!important;width:100%;min-height:46px}.stat-row{gap:12px;align-items:flex-start}.stat-row>*{min-width:0}.stat-row span:last-child{overflow-wrap:anywhere}}@media(max-width:380px){.main{padding:13px 9px 24px}.kpis{grid-template-columns:1fr}.mobilebar b{max-width:40vw}.mobilebar select{width:53vw}.business-hero{min-height:118px!important}.demo-selector-card{padding:18px 12px!important}.demo-choice{font-size:15px!important}}`;document.head.append(mobileExperienceStyle);
 </script>
+<script>
+/* שכבת החיבור לשרת BeautyFlow. כתובת זו ציבורית ואינה כוללת סוד. */
+(()=>{
+  const API_BASE='https://beautyflow-ihl7.vercel.app';
+  const authKey='beautyflow-api-token-v1';
+  const api=async(path,{method='GET',body,auth=true}={})=>{
+    const headers={'Content-Type':'application/json'};
+    const token=localStorage.getItem(authKey);
+    if(auth&&token)headers.Authorization='Bearer '+token;
+    const response=await fetch(API_BASE+path,{method,headers,body:body?JSON.stringify(body):undefined});
+    const payload=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(payload.error||'הפעולה נכשלה. נסה/י שוב.');
+    return payload;
+  };
+  const localDate=raw=>{const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jerusalem',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(raw));const read=t=>parts.find(p=>p.type===t)?.value;return `${read('year')}-${read('month')}-${read('day')}`};
+  const localTime=raw=>new Intl.DateTimeFormat('he-IL',{timeZone:'Asia/Jerusalem',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(raw));
+  const workspaceToData=workspace=>({
+    settings:{...workspace.settings,businessName:workspace.business.name,businessType:workspace.business.businessType,treatments:workspace.services.map(service=>service.name),blockSaturdays:false,blockedDates:[]},
+    services:workspace.services,resources:workspace.resources,businessHours:workspace.businessHours,timeBlocks:workspace.timeBlocks,
+    appointments:workspace.appointments.map(item=>({id:item.id,name:item.customer_name,phone:item.phone||'',treatment:item.service_name,serviceId:item.service_id,price:item.price,date:localDate(item.starts_at),time:localTime(item.starts_at),note:item.notes||'',status:item.status})),
+    leads:workspace.leads.map(item=>({id:item.id,name:item.full_name,phone:item.phone,service:item.service_name||'',note:item.message||'',source:item.source,status:item.status})),
+    waitlist:workspace.waitlist.map(item=>({id:item.id,name:item.full_name,phone:item.phone,treatment:item.service_name||'',preference:item.preference||''})),
+    packages:workspace.packages.map(item=>({id:item.id,client:item.customer_name,name:item.name,total:item.total_sessions,used:item.used_sessions,price:item.price}))
+  });
+  const loadWorkspace=async id=>{
+    const workspace=await api(`/api/businesses/${id}/workspace`);
+    data=workspaceToData(workspace);
+    const business=businesses.find(item=>item.id===id);
+    if(business){business.name=workspace.business.name;business.type=workspace.business.businessType;business.publicId=workspace.business.publicId}
+    persistRegistry();
+  };
+  const loadBusinesses=async()=>{
+    const result=await api('/api/businesses');
+    businesses=result.map(item=>({id:item.id,name:item.name,type:item.businessType,publicId:item.publicId,ownerId:currentUser.id}));
+    if(!businesses.some(item=>item.id===activeBusinessId))activeBusinessId=businesses[0]?.id||'';
+    persistRegistry();
+  };
+  const showApiWorkspace=async()=>{
+    await loadBusinesses();
+    $('#ownerAuth').classList.add('hide');$('#workspacePicker').classList.remove('hide');$('#authError').textContent='';
+    $('#businessSelect').innerHTML=businesses.map(item=>`<option value="${item.id}">${esc(item.name)} · ${esc(item.type)}</option>`).join('')||'<option value="">עדיין אין עסק. אפשר ליצור אחד למטה.</option>';
+    $('#businessSelect').value=activeBusinessId;
+  };
+  const openBusiness=async id=>{
+    activeBusinessId=id;
+    await loadWorkspace(id);
+    const business=businesses.find(item=>item.id===id);
+    $('#accountName').textContent=business?.name||'BeautyFlow';
+    $('#authGate').classList.add('hide');render();show('dashboard');
+  };
+  const savedClientLink=window.clientLink;
+  window.clientLink=()=>{const business=businesses.find(item=>item.id===activeBusinessId);if(!business?.publicId)return savedClientLink();const url=new URL(window.location.href);url.search='';url.searchParams.set('public','1');url.searchParams.set('business',business.publicId);return url.toString()};
+  if(demoMode)return;
+  $('#ownerAuthSwitch').onclick=()=>setAuthMode(!isRegisterMode);
+  $('#ownerAuthForm').onsubmit=async event=>{
+    event.preventDefault();
+    const button=$('#ownerAuthSubmit');button.disabled=true;$('#authError').textContent='';
+    try{
+      const result=await api(isRegisterMode?'/api/auth/register':'/api/auth/login',{method:'POST',auth:false,body:{email:$('#ownerEmail').value.trim(),password:$('#ownerPassword').value}});
+      localStorage.setItem(authKey,result.token);currentUser=result.user;await showApiWorkspace();
+    }catch(error){$('#authError').textContent=error.message}finally{button.disabled=false}
+  };
+  $('#enterBusiness').onclick=()=>openBusiness($('#businessSelect').value).catch(error=>$('#authError').textContent=error.message);
+  $('#createBusiness').onclick=async()=>{
+    const name=$('#newBusinessName').value.trim(),businessType=$('#newBusinessType').value;
+    if(!name){$('#authError').textContent='יש להזין שם עסק.';return}
+    try{
+      const business=await api('/api/businesses',{method:'POST',body:{name,businessType}});
+      businesses.push({id:business.id,name:business.name,type:business.businessType,publicId:business.publicId,ownerId:currentUser.id});
+      activeBusinessId=business.id;
+      const template=businessTemplates[businessType]?.services||['פגישת היכרות'];
+      await Promise.all(template.map(name=>api(`/api/businesses/${business.id}/services`,{method:'POST',body:{name,price:0,durationMinutes:60}})));
+      $('#newBusinessName').value='';await openBusiness(business.id);
+    }catch(error){$('#authError').textContent=error.message}
+  };
+  $('#logoutButton').onclick=()=>{localStorage.removeItem(authKey);currentUser=null;$('#authGate').classList.remove('hide');$('#workspacePicker').classList.add('hide');$('#ownerAuth').classList.remove('hide');setAuthMode(false)};
+  $('#appointmentForm').onsubmit=async event=>{
+    event.preventDefault();
+    const service=data.services?.find(item=>item.name===$('#bookTreatment').value);
+    const startsAt=new Date(`${$('#bookDate').value}T${$('#bookTime').value}:00+03:00`).toISOString();
+    try{
+      await api(`/api/businesses/${activeBusinessId}/appointments`,{method:'POST',body:{customerName:$('#bookName').value.trim(),phone:$('#bookPhone').value.trim(),serviceId:service?.id,serviceName:$('#bookTreatment').value,price:Number($('#bookPrice').value),startsAt,notes:$('#bookNote').value.trim(),status:'מאושר'}});
+      await loadWorkspace(activeBusinessId);event.target.reset();render();show('calendar');
+    }catch(error){alert(error.message)}
+  };
+  window.cancelAppointment=async id=>{if(!confirm('לבטל את התור?'))return;try{await api(`/api/businesses/${activeBusinessId}/appointments/${id}`,{method:'PATCH',body:{status:'בוטל'}});await loadWorkspace(activeBusinessId);render()}catch(error){alert(error.message)}};
+  const params=new URLSearchParams(window.location.search);
+  const publicId=params.get('business');
+  if(params.get('public')==='1'&&publicId){
+    api(`/api/public/businesses/${publicId}`,{auth:false}).then(business=>{
+      $('#authGate').classList.add('hide');$('.app').classList.add('hide');$('#publicPage').classList.add('active');
+      $('#publicBusinessName').textContent=business.name;$('#publicBusinessType').textContent=business.businessType;
+      $('#publicLeadService').innerHTML=business.services.map(item=>`<option>${esc(item.name||item)}</option>`).join('');
+      $('#publicLeadForm').onsubmit=async event=>{event.preventDefault();try{await api(`/api/public/businesses/${publicId}/leads`,{method:'POST',auth:false,body:{fullName:$('#publicLeadName').value.trim(),phone:$('#publicLeadPhone').value.trim(),serviceName:$('#publicLeadService').value,message:$('#publicLeadNote').value.trim()}});event.target.classList.add('hide');$('#publicSuccess').classList.remove('hide')}catch(error){alert(error.message)}};
+    }).catch(error=>{$('#authError').textContent=error.message});
+    return;
+  }
+  const token=localStorage.getItem(authKey);
+  if(token){try{const payload=JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));currentUser={id:payload.sub,email:payload.email};showApiWorkspace().catch(()=>localStorage.removeItem(authKey))}catch{localStorage.removeItem(authKey)}}
+})();
+</script>
 </body></html>

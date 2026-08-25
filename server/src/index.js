@@ -121,6 +121,15 @@ app.post('/api/businesses/:businessId/appointments', requireAuth, asyncRoute(asy
   res.status(201).json(row);
 }));
 
+app.patch('/api/businesses/:businessId/appointments/:appointmentId', requireAuth, asyncRoute(async (req, res) => {
+  const business = await ownedBusiness(req.user.sub, req.params.businessId);
+  if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
+  const status = z.enum(['ממתין', 'מאושר', 'הושלם', 'בוטל', 'לא הגיע']).parse(req.body.status);
+  const row = await withTenant(business.schema_name, async client => (await client.query('update appointments set status = $1 where id = $2 returning id, status', [status, req.params.appointmentId])).rows[0]);
+  if (!row) return res.status(404).json({ error: 'התור לא נמצא' });
+  res.json(row);
+}));
+
 app.get('/api/businesses/:businessId/resources', requireAuth, asyncRoute(async (req, res) => {
   const business = await ownedBusiness(req.user.sub, req.params.businessId);
   if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
