@@ -457,9 +457,20 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
       localStorage.setItem('beautyflow-active-business-v1',business.id);
       document.querySelector('#accountName').textContent=workspace.business.name;
       document.querySelector('#authGate').classList.add('hide');
-      render();show('dashboard');
+      render();hydrateResources();show('dashboard');
     }catch(error){if(/401|403|פג/.test(error.message))localStorage.removeItem('beautyflow-api-token-v1')}
   };
+  const hydrateResources=()=>{
+    const select=document.querySelector('#bookResource');
+    if(!select||!Array.isArray(data?.resources))return;
+    const previous=select.value;
+    select.innerHTML=data.resources.map(item=>`<option value="${item.id}">${item.name} · ${item.resourceType}</option>`).join('')||'<option value="">יש להוסיף משאב בהגדרות</option>';
+    if(data.resources.some(item=>item.id===previous))select.value=previous;
+    else if(data.resources.length===1)select.value=data.resources[0].id;
+  };
+  document.addEventListener('click',event=>{
+    if(event.target.closest('[data-go="book"],[data-screen="book"]'))setTimeout(hydrateResources,0);
+  },true);
   restore();
 })();
 </script>
