@@ -39,9 +39,11 @@ create table if not exists service_resources (
 );
 
 create table if not exists customers (
-  id uuid primary key default gen_random_uuid(), full_name text not null, phone text not null unique,
+  id uuid primary key default gen_random_uuid(), full_name text not null, phone text not null,
   notes text, created_at timestamptz not null default now()
 );
+
+create unique index if not exists customers_full_name_phone_key on customers (full_name, phone);
 
 create table if not exists appointments (
   id uuid primary key default gen_random_uuid(), customer_id uuid references customers(id) on delete set null,

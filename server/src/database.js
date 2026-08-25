@@ -15,6 +15,9 @@ export async function provisionTenant(client, schemaName) {
   const template = await readFile(templatePath, 'utf8');
   await client.query(`set local search_path to ${schemaName}, public`);
   await client.query(template);
+  // טלפון יכול להיות משותף לבני משפחה. מזהים לקוח לפי שם ומספר יחד.
+  await client.query('alter table customers drop constraint if exists customers_phone_key');
+  await client.query('create unique index if not exists customers_full_name_phone_key on customers (full_name, phone)');
   await client.query('insert into business_settings (id) values (true) on conflict do nothing');
 }
 

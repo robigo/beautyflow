@@ -138,7 +138,7 @@ app.post('/api/businesses/:businessId/appointments', requireAuth, asyncRoute(asy
       const block = (await client.query('select 1 from time_blocks where (resource_id = $1 or resource_id is null) and starts_at < $3 and ends_at > $2 limit 1', [resourceId, item.startsAt, endsAt])).rows[0];
       if (block) throw Object.assign(new Error('הזמן שנבחר חסום'), { statusCode: 409 });
     }
-    const customer = item.phone ? await client.query('insert into customers (full_name, phone) values ($1, $2) on conflict (phone) do update set full_name = excluded.full_name returning id', [item.customerName, item.phone]) : { rows: [] };
+    const customer = item.phone ? await client.query('insert into customers (full_name, phone) values ($1, $2) on conflict (full_name, phone) do update set full_name = customers.full_name returning id', [item.customerName, item.phone]) : { rows: [] };
     const result = await client.query('insert into appointments (customer_id, customer_name, phone, service_id, service_name, resource_id, price, starts_at, ends_at, notes, status) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *', [customer.rows[0]?.id ?? null, item.customerName, item.phone ?? null, service?.id ?? null, service?.name ?? item.serviceName, resourceId, service?.price ?? item.price ?? 0, item.startsAt, endsAt, item.notes ?? null, item.status ?? 'ממתין']);
     return result.rows[0];
   });
@@ -262,7 +262,7 @@ app.post('/api/public/businesses/:publicId/appointments', asyncRoute(async (req,
     const endsAt = new Date(new Date(item.startsAt).getTime() + (service.duration_minutes + service.buffer_minutes) * 60000).toISOString();
     const block = (await client.query('select 1 from time_blocks where (resource_id = $1 or resource_id is null) and starts_at < $3 and ends_at > $2 limit 1', [resource.id, item.startsAt, endsAt])).rows[0];
     if (block) throw Object.assign(new Error('הזמן שנבחר כבר אינו זמין'), { statusCode: 409 });
-    const customer = (await client.query('insert into customers (full_name, phone) values ($1,$2) on conflict (phone) do update set full_name = excluded.full_name returning id', [item.customerName, item.phone])).rows[0];
+    const customer = (await client.query('insert into customers (full_name, phone) values ($1,$2) on conflict (full_name, phone) do update set full_name = customers.full_name returning id', [item.customerName, item.phone])).rows[0];
     return (await client.query("insert into appointments (customer_id, customer_name, phone, service_id, service_name, resource_id, price, starts_at, ends_at, status) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ממתין') returning id, starts_at as \"startsAt\", status", [customer.id, item.customerName, item.phone, service.id, service.name, resource.id, service.price, item.startsAt, endsAt])).rows[0];
   });
   res.status(201).json(appointment);
