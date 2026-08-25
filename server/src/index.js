@@ -61,7 +61,10 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const { rows } = await pool.query('select id, email, password_hash, is_platform_admin from public.app_users where email = $1', [email]);
   const user = rows[0];
   if (!user || !(await verifyPassword(password, user.password_hash))) return res.status(401).json({ error: 'אימייל או סיסמה שגויים' });
-  res.json({ token: signToken(user), user: { id: user.id, email: user.email, isPlatformAdmin: user.is_platform_admin } });
+  const isPlatformAdmin = user.is_platform_admin || isPlatformAdminEmail(user.email);
+  if (isPlatformAdmin && !user.is_platform_admin) await pool.query('update public.app_users set is_platform_admin = true where id = $1', [user.id]);
+  const sessionUser = { ...user, is_platform_admin: isPlatformAdmin };
+  res.json({ token: signToken(sessionUser), user: { id: user.id, email: user.email, isPlatformAdmin } });
 }));
 
 app.get('/api/admin/overview', requireAuth, asyncRoute(async (req, res) => {
