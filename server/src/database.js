@@ -18,6 +18,23 @@ export async function provisionTenant(client, schemaName) {
   await client.query('insert into business_settings (id) values (true) on conflict do nothing');
 }
 
+export async function migrateAllTenants() {
+  const { rows } = await pool.query('select schema_name from public.businesses');
+  for (const { schema_name: schemaName } of rows) {
+    const client = await pool.connect();
+    try {
+      await client.query('begin');
+      await provisionTenant(client, schemaName);
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}
+
 export async function withTenant(schemaName, action) {
   if (!/^tenant_[a-z0-9_]+$/.test(schemaName)) throw new Error('Invalid tenant schema');
   const client = await pool.connect();

@@ -43,7 +43,12 @@
 | רשימת עסקים | `GET /api/businesses` |
 | יצירת עסק ו-schema | `POST /api/businesses` |
 | טעינת סביבת עסק | `GET /api/businesses/:businessId/workspace` |
+| משאבים / אנשי צוות | `GET/POST /api/businesses/:businessId/resources` |
+| שירות מפורט | `POST /api/businesses/:businessId/services` |
+| חסימת זמן | `POST /api/businesses/:businessId/time-blocks` |
 | קביעת תור | `POST /api/businesses/:businessId/appointments` |
 | טופס לקוח ציבורי | `GET/POST /api/public/businesses/:publicId/...` |
 
 כל נקודות הקצה של בעל עסק דורשות כותרת `Authorization: Bearer <token>`.
+
+בקביעת תור אפשר לשלוח `serviceId` ו-`resourceId`. השרת מחשב את זמן הסיום על פי משך השירות וה-buffer, בודק חסימות ידניות, ומסד הנתונים מונע חפיפה של תורים לאותו משאב גם במקרה של שתי בקשות בו-זמנית.

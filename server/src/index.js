@@ -16,8 +16,11 @@ app.use(express.json({ limit: '100kb' }));
 
 const credentials = z.object({ email: z.string().email().transform(value => value.toLowerCase()), password: z.string().min(8).max(128) });
 const businessInput = z.object({ name: z.string().trim().min(2).max(100), businessType: z.string().trim().min(2).max(100) });
-const appointmentInput = z.object({ customerName: z.string().trim().min(2).max(100), phone: z.string().trim().max(40).optional(), serviceName: z.string().trim().min(1).max(100), price: z.coerce.number().min(0), startsAt: z.string().datetime(), notes: z.string().max(2000).optional(), status: z.enum(['מאושר', 'הושלם', 'בוטל']).optional() });
+const appointmentInput = z.object({ customerName: z.string().trim().min(2).max(100), phone: z.string().trim().max(40).optional(), serviceId: z.string().uuid().optional(), serviceName: z.string().trim().min(1).max(100).optional(), resourceId: z.string().uuid().optional(), price: z.coerce.number().min(0).optional(), startsAt: z.string().datetime(), notes: z.string().max(2000).optional(), status: z.enum(['ממתין', 'מאושר', 'הושלם', 'בוטל', 'לא הגיע']).optional() });
 const leadInput = z.object({ fullName: z.string().trim().min(2).max(100), phone: z.string().trim().min(4).max(40), serviceName: z.string().trim().max(100).optional(), message: z.string().trim().max(2000).optional() });
+const resourceInput = z.object({ name: z.string().trim().min(2).max(100), resourceType: z.string().trim().min(2).max(60).default('איש צוות'), capacity: z.coerce.number().int().min(1).max(20).default(1) });
+const serviceInput = z.object({ name: z.string().trim().min(2).max(100), price: z.coerce.number().min(0), durationMinutes: z.coerce.number().int().min(15).max(480), preparationMinutes: z.coerce.number().int().min(0).max(180).default(0), bufferMinutes: z.coerce.number().int().min(0).max(180).default(0), resourceIds: z.array(z.string().uuid()).default([]) });
+const timeBlockInput = z.object({ resourceId: z.string().uuid().optional(), startsAt: z.string().datetime(), endsAt: z.string().datetime(), reason: z.string().trim().max(300).optional() }).refine(value => new Date(value.endsAt) > new Date(value.startsAt), { message: 'זמן הסיום חייב להיות אחרי זמן ההתחלה' });
 
 const asyncRoute = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 async function ownedBusiness(userId, businessId) {
@@ -74,13 +77,17 @@ app.get('/api/businesses/:businessId/workspace', requireAuth, asyncRoute(async (
   const business = await ownedBusiness(req.user.sub, req.params.businessId);
   if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
   const data = await withTenant(business.schema_name, async client => {
-    const [settings, services, customers, appointments, leads, waitlist, packages] = await Promise.all([
+    const [settings, services, resources, businessHours, timeBlocks, customers, appointments, leads, waitlist, packages] = await Promise.all([
       client.query('select brand_color as "brandColor", slot_length as "slotLength", treatments from business_settings where id = true'),
-      client.query('select * from services order by name'), client.query('select * from customers order by full_name'),
+      client.query('select id, name, price, duration_minutes as "durationMinutes", preparation_minutes as "preparationMinutes", buffer_minutes as "bufferMinutes", is_active as "isActive" from services order by name'),
+      client.query('select id, name, resource_type as "resourceType", capacity, is_active as "isActive" from resources order by name'),
+      client.query('select day_of_week as "dayOfWeek", opens_at as "opensAt", closes_at as "closesAt", is_closed as "isClosed" from business_hours order by day_of_week'),
+      client.query('select id, resource_id as "resourceId", starts_at as "startsAt", ends_at as "endsAt", reason from time_blocks order by starts_at'),
+      client.query('select * from customers order by full_name'),
       client.query('select * from appointments order by starts_at desc'), client.query('select * from leads order by created_at desc'),
       client.query('select * from waitlist_entries order by created_at desc'), client.query('select * from packages order by created_at desc')
     ]);
-    return { settings: settings.rows[0], services: services.rows, customers: customers.rows, appointments: appointments.rows, leads: leads.rows, waitlist: waitlist.rows, packages: packages.rows };
+    return { settings: settings.rows[0], services: services.rows, resources: resources.rows, businessHours: businessHours.rows, timeBlocks: timeBlocks.rows, customers: customers.rows, appointments: appointments.rows, leads: leads.rows, waitlist: waitlist.rows, packages: packages.rows };
   });
   res.json({ business: { id: business.id, name: business.name, businessType: business.business_type, publicId: business.public_id }, ...data });
 }));
@@ -90,10 +97,62 @@ app.post('/api/businesses/:businessId/appointments', requireAuth, asyncRoute(asy
   if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
   const item = appointmentInput.parse(req.body);
   const row = await withTenant(business.schema_name, async client => {
+    const service = item.serviceId ? (await client.query('select id, name, price, duration_minutes, buffer_minutes from services where id = $1 and is_active = true', [item.serviceId])).rows[0] : null;
+    if (item.serviceId && !service) return null;
+    const durationMinutes = service?.duration_minutes ?? 60;
+    const endsAt = new Date(new Date(item.startsAt).getTime() + (durationMinutes + (service?.buffer_minutes ?? 0)) * 60000).toISOString();
+    if (item.resourceId) {
+      const resource = (await client.query('select id from resources where id = $1 and is_active = true', [item.resourceId])).rows[0];
+      if (!resource) throw Object.assign(new Error('המשאב אינו זמין'), { statusCode: 400 });
+      if (service) {
+        const mapping = await client.query('select 1 from service_resources where service_id = $1 limit 1', [service.id]);
+        if (mapping.rows[0] && !(await client.query('select 1 from service_resources where service_id = $1 and resource_id = $2', [service.id, item.resourceId])).rows[0]) {
+          throw Object.assign(new Error('המשאב אינו מבצע שירות זה'), { statusCode: 400 });
+        }
+      }
+      const block = (await client.query('select 1 from time_blocks where (resource_id = $1 or resource_id is null) and starts_at < $3 and ends_at > $2 limit 1', [item.resourceId, item.startsAt, endsAt])).rows[0];
+      if (block) throw Object.assign(new Error('הזמן שנבחר חסום'), { statusCode: 409 });
+    }
     const customer = item.phone ? await client.query('insert into customers (full_name, phone) values ($1, $2) on conflict (phone) do update set full_name = excluded.full_name returning id', [item.customerName, item.phone]) : { rows: [] };
-    const result = await client.query('insert into appointments (customer_id, customer_name, phone, service_name, price, starts_at, notes, status) values ($1,$2,$3,$4,$5,$6,$7,$8) returning *', [customer.rows[0]?.id ?? null, item.customerName, item.phone ?? null, item.serviceName, item.price, item.startsAt, item.notes ?? null, item.status ?? 'מאושר']);
+    const result = await client.query('insert into appointments (customer_id, customer_name, phone, service_id, service_name, resource_id, price, starts_at, ends_at, notes, status) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *', [customer.rows[0]?.id ?? null, item.customerName, item.phone ?? null, service?.id ?? null, service?.name ?? item.serviceName, item.resourceId ?? null, service?.price ?? item.price ?? 0, item.startsAt, endsAt, item.notes ?? null, item.status ?? 'ממתין']);
     return result.rows[0];
   });
+  if (!row) return res.status(400).json({ error: 'השירות אינו זמין' });
+  res.status(201).json(row);
+}));
+
+app.get('/api/businesses/:businessId/resources', requireAuth, asyncRoute(async (req, res) => {
+  const business = await ownedBusiness(req.user.sub, req.params.businessId);
+  if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
+  const rows = await withTenant(business.schema_name, client => client.query('select id, name, resource_type as "resourceType", capacity, is_active as "isActive" from resources order by name'));
+  res.json(rows.rows);
+}));
+
+app.post('/api/businesses/:businessId/resources', requireAuth, asyncRoute(async (req, res) => {
+  const business = await ownedBusiness(req.user.sub, req.params.businessId);
+  if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
+  const item = resourceInput.parse(req.body);
+  const row = await withTenant(business.schema_name, async client => (await client.query('insert into resources (name, resource_type, capacity) values ($1,$2,$3) returning id, name, resource_type as "resourceType", capacity, is_active as "isActive"', [item.name, item.resourceType, item.capacity])).rows[0]);
+  res.status(201).json(row);
+}));
+
+app.post('/api/businesses/:businessId/services', requireAuth, asyncRoute(async (req, res) => {
+  const business = await ownedBusiness(req.user.sub, req.params.businessId);
+  if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
+  const item = serviceInput.parse(req.body);
+  const row = await withTenant(business.schema_name, async client => {
+    const created = (await client.query('insert into services (name, price, duration_minutes, preparation_minutes, buffer_minutes) values ($1,$2,$3,$4,$5) returning id, name, price, duration_minutes as "durationMinutes", preparation_minutes as "preparationMinutes", buffer_minutes as "bufferMinutes"', [item.name, item.price, item.durationMinutes, item.preparationMinutes, item.bufferMinutes])).rows[0];
+    for (const resourceId of item.resourceIds) await client.query('insert into service_resources (service_id, resource_id) values ($1,$2)', [created.id, resourceId]);
+    return created;
+  });
+  res.status(201).json(row);
+}));
+
+app.post('/api/businesses/:businessId/time-blocks', requireAuth, asyncRoute(async (req, res) => {
+  const business = await ownedBusiness(req.user.sub, req.params.businessId);
+  if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
+  const item = timeBlockInput.parse(req.body);
+  const row = await withTenant(business.schema_name, async client => (await client.query('insert into time_blocks (resource_id, starts_at, ends_at, reason) values ($1,$2,$3,$4) returning id, resource_id as "resourceId", starts_at as "startsAt", ends_at as "endsAt", reason', [item.resourceId ?? null, item.startsAt, item.endsAt, item.reason ?? null])).rows[0]);
   res.status(201).json(row);
 }));
 
@@ -116,6 +175,8 @@ app.post('/api/public/businesses/:publicId/leads', asyncRoute(async (req, res) =
 app.use((error, _req, res, _next) => {
   console.error(error);
   if (error instanceof z.ZodError) return res.status(400).json({ error: 'פרטים לא תקינים', details: error.flatten() });
+  if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
+  if (error.code === '23P01') return res.status(409).json({ error: 'הזמן שנבחר כבר נתפס' });
   res.status(500).json({ error: 'אירעה שגיאה בשרת' });
 });
 
