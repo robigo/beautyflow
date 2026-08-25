@@ -21,6 +21,7 @@ const leadInput = z.object({ fullName: z.string().trim().min(2).max(100), phone:
 const resourceInput = z.object({ name: z.string().trim().min(2).max(100), resourceType: z.string().trim().min(2).max(60).default('איש צוות'), capacity: z.coerce.number().int().min(1).max(20).default(1) });
 const serviceInput = z.object({ name: z.string().trim().min(2).max(100), price: z.coerce.number().min(0), durationMinutes: z.coerce.number().int().min(15).max(480), preparationMinutes: z.coerce.number().int().min(0).max(180).default(0), bufferMinutes: z.coerce.number().int().min(0).max(180).default(0), resourceIds: z.array(z.string().uuid()).default([]) });
 const timeBlockInput = z.object({ resourceId: z.string().uuid().optional(), startsAt: z.string().datetime(), endsAt: z.string().datetime(), reason: z.string().trim().max(300).optional() }).refine(value => new Date(value.endsAt) > new Date(value.startsAt), { message: 'זמן הסיום חייב להיות אחרי זמן ההתחלה' });
+const publicAppointmentInput = z.object({ customerName: z.string().trim().min(2).max(100), phone: z.string().trim().min(4).max(40), serviceId: z.string().uuid(), resourceId: z.string().uuid(), startsAt: z.string().datetime() });
 
 const asyncRoute = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 async function ownedBusiness(userId, businessId) {
@@ -169,8 +170,65 @@ app.get('/api/public/businesses/:publicId', asyncRoute(async (req, res) => {
   const { rows } = await pool.query('select id, name, business_type, schema_name from public.businesses where public_id = $1', [req.params.publicId]);
   const business = rows[0];
   if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
-  const services = await withTenant(business.schema_name, client => client.query('select name from services where is_active = true order by name'));
-  res.json({ name: business.name, businessType: business.business_type, services: services.rows.map(item => item.name) });
+  const { services, resources } = await withTenant(business.schema_name, async client => ({
+    services: await client.query('select id, name, price, duration_minutes as "durationMinutes" from services where is_active = true order by name'),
+    resources: await client.query('select id, name, resource_type as "resourceType" from resources where is_active = true order by name')
+  }));
+  res.json({ name: business.name, businessType: business.business_type, services: services.rows, resources: resources.rows });
+}));
+
+app.get('/api/public/businesses/:publicId/availability', asyncRoute(async (req, res) => {
+  const query = z.object({ serviceId: z.string().uuid(), resourceId: z.string().uuid(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(req.query);
+  const { rows } = await pool.query('select schema_name from public.businesses where public_id = $1', [req.params.publicId]);
+  if (!rows[0]) return res.status(404).json({ error: 'העסק לא נמצא' });
+  const result = await withTenant(rows[0].schema_name, async client => {
+    const [serviceResult, resourceResult, hoursResult, settingsResult] = await Promise.all([
+      client.query('select id, duration_minutes, preparation_minutes, buffer_minutes from services where id = $1 and is_active = true', [query.serviceId]),
+      client.query('select id from resources where id = $1 and is_active = true', [query.resourceId]),
+      client.query('select opens_at, closes_at, is_closed from business_hours where day_of_week = $1', [new Date(`${query.date}T12:00:00Z`).getUTCDay()]),
+      client.query('select slot_length from business_settings where id = true')
+    ]);
+    const service = serviceResult.rows[0], resource = resourceResult.rows[0], hours = hoursResult.rows[0];
+    if (!service || !resource || !hours || hours.is_closed) return { slots: [] };
+    const mapping = await client.query('select 1 from service_resources where service_id = $1 limit 1', [service.id]);
+    if (mapping.rows[0] && !(await client.query('select 1 from service_resources where service_id = $1 and resource_id = $2', [service.id, resource.id])).rows[0]) return { slots: [] };
+    const offset = '+03:00'; // Israel local time; the booking UI and production users are in Israel.
+    const open = new Date(`${query.date}T${hours.opens_at}${offset}`), close = new Date(`${query.date}T${hours.closes_at}${offset}`);
+    const [{ rows: appointments }, { rows: blocks }] = await Promise.all([
+      client.query("select starts_at, ends_at from appointments where resource_id = $1 and status <> 'בוטל' and starts_at < $3 and ends_at > $2", [resource.id, open.toISOString(), close.toISOString()]),
+      client.query('select starts_at, ends_at from time_blocks where (resource_id = $1 or resource_id is null) and starts_at < $3 and ends_at > $2', [resource.id, open.toISOString(), close.toISOString()])
+    ]);
+    const busy = [...appointments, ...blocks];
+    const duration = (service.duration_minutes + service.preparation_minutes + service.buffer_minutes) * 60000;
+    const step = settingsResult.rows[0]?.slot_length ?? 30, slots = [];
+    for (let cursor = open.getTime(); cursor + duration <= close.getTime(); cursor += step * 60000) {
+      const end = cursor + duration;
+      if (!busy.some(item => new Date(item.starts_at).getTime() < end && new Date(item.ends_at).getTime() > cursor)) slots.push(new Date(cursor).toISOString());
+    }
+    return { slots };
+  });
+  res.json(result);
+}));
+
+app.post('/api/public/businesses/:publicId/appointments', asyncRoute(async (req, res) => {
+  const item = publicAppointmentInput.parse(req.body);
+  const { rows } = await pool.query('select schema_name from public.businesses where public_id = $1', [req.params.publicId]);
+  if (!rows[0]) return res.status(404).json({ error: 'העסק לא נמצא' });
+  const appointment = await withTenant(rows[0].schema_name, async client => {
+    const service = (await client.query('select id, name, price, duration_minutes, buffer_minutes from services where id = $1 and is_active = true', [item.serviceId])).rows[0];
+    const resource = (await client.query('select id from resources where id = $1 and is_active = true', [item.resourceId])).rows[0];
+    if (!service || !resource) throw Object.assign(new Error('השירות או המשאב אינם זמינים'), { statusCode: 400 });
+    const mapping = await client.query('select 1 from service_resources where service_id = $1 limit 1', [service.id]);
+    if (mapping.rows[0] && !(await client.query('select 1 from service_resources where service_id = $1 and resource_id = $2', [service.id, resource.id])).rows[0]) {
+      throw Object.assign(new Error('המשאב אינו מבצע שירות זה'), { statusCode: 400 });
+    }
+    const endsAt = new Date(new Date(item.startsAt).getTime() + (service.duration_minutes + service.buffer_minutes) * 60000).toISOString();
+    const block = (await client.query('select 1 from time_blocks where (resource_id = $1 or resource_id is null) and starts_at < $3 and ends_at > $2 limit 1', [resource.id, item.startsAt, endsAt])).rows[0];
+    if (block) throw Object.assign(new Error('הזמן שנבחר כבר אינו זמין'), { statusCode: 409 });
+    const customer = (await client.query('insert into customers (full_name, phone) values ($1,$2) on conflict (phone) do update set full_name = excluded.full_name returning id', [item.customerName, item.phone])).rows[0];
+    return (await client.query("insert into appointments (customer_id, customer_name, phone, service_id, service_name, resource_id, price, starts_at, ends_at, status) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ממתין') returning id, starts_at as \"startsAt\", status", [customer.id, item.customerName, item.phone, service.id, service.name, resource.id, service.price, item.startsAt, endsAt])).rows[0];
+  });
+  res.status(201).json(appointment);
 }));
 
 app.post('/api/public/businesses/:publicId/leads', asyncRoute(async (req, res) => {
