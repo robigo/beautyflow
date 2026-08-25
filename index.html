@@ -199,6 +199,7 @@ const mobileExperienceStyle=document.createElement('style');mobileExperienceStyl
   const renderSchedulingControls=()=>{
     mountSchedulingControls();
     const resources=data.resources||[],services=data.services||[],blocks=data.timeBlocks||[];
+    $('#bookDate').min=localDate(new Date());
     const resourceOptions=resources.map(item=>`<option value="${item.id}">${esc(item.name)} · ${esc(item.resourceType)}</option>`).join('');
     $('#bookResource').innerHTML=resourceOptions||'<option value="">יש להוסיף משאב בהגדרות</option>';
     $('#serviceResource').innerHTML='<option value="">כל משאב זמין</option>'+resourceOptions;

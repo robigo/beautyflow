@@ -26,6 +26,9 @@ const publicAppointmentInput = z.object({ customerName: z.string().trim().min(2)
 const asyncRoute = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const platformAdminEmail = process.env.PLATFORM_ADMIN_EMAIL?.trim().toLowerCase();
 const isPlatformAdminEmail = email => Boolean(platformAdminEmail && email.toLowerCase() === platformAdminEmail);
+const assertFutureAppointment = startsAt => {
+  if (new Date(startsAt).getTime() <= Date.now()) throw Object.assign(new Error('לא ניתן לקבוע תור לזמן שכבר עבר'), { statusCode: 400 });
+};
 async function ownedBusiness(userId, businessId) {
   const { rows } = await pool.query('select id, name, business_type, schema_name, public_id from public.businesses where id = $1 and owner_id = $2', [businessId, userId]);
   return rows[0];
@@ -107,6 +110,7 @@ app.post('/api/businesses/:businessId/appointments', requireAuth, asyncRoute(asy
   const business = await ownedBusiness(req.user.sub, req.params.businessId);
   if (!business) return res.status(404).json({ error: 'העסק לא נמצא' });
   const item = appointmentInput.parse(req.body);
+  assertFutureAppointment(item.startsAt);
   const row = await withTenant(business.schema_name, async client => {
     let resourceId = item.resourceId;
     if (!resourceId) {
@@ -219,7 +223,7 @@ app.get('/api/public/businesses/:publicId/availability', asyncRoute(async (req, 
     const step = settingsResult.rows[0]?.slot_length ?? 30, slots = [];
     for (let cursor = open.getTime(); cursor + duration <= close.getTime(); cursor += step * 60000) {
       const end = cursor + duration;
-      if (!busy.some(item => new Date(item.starts_at).getTime() < end && new Date(item.ends_at).getTime() > cursor)) slots.push(new Date(cursor).toISOString());
+      if (cursor > Date.now() && !busy.some(item => new Date(item.starts_at).getTime() < end && new Date(item.ends_at).getTime() > cursor)) slots.push(new Date(cursor).toISOString());
     }
     return { slots };
   });
@@ -228,6 +232,7 @@ app.get('/api/public/businesses/:publicId/availability', asyncRoute(async (req, 
 
 app.post('/api/public/businesses/:publicId/appointments', asyncRoute(async (req, res) => {
   const item = publicAppointmentInput.parse(req.body);
+  assertFutureAppointment(item.startsAt);
   const { rows } = await pool.query('select schema_name from public.businesses where public_id = $1', [req.params.publicId]);
   if (!rows[0]) return res.status(404).json({ error: 'העסק לא נמצא' });
   const appointment = await withTenant(rows[0].schema_name, async client => {
