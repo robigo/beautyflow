@@ -47,6 +47,8 @@ window.addEventListener('DOMContentLoaded',()=>{
 window.addEventListener('DOMContentLoaded',()=>{
   if(new URLSearchParams(location.search).get('booking')==='1')return;
   const base='https://beautyflow-ihl7.vercel.app',pick=selector=>document.querySelector(selector);
+  const businessTypes=['עסק יופי וטיפוח','מספרה','ברברשופ','מספרת כלבים','פנסיון כלבים','אילוף כלבים','ציפורניים','קוסמטיקה','ריסים וגבות','איפור','קליעת צמות אפריקאיות','עיסוי וספא','קעקועים','קליניקה','פיזיותרפיה','תזונה','טיפולים משלימים','טיפול רגשי','סטודיו יוגה ופילאטיס','מאמן/ת אישי/ת','שיעורים פרטיים','מורה למוזיקה','מורה נהיגה','צלם/ת','ייעוץ עסקי','דיטיילינג לרכב','עסק שירות אחר'];
+  ['#newBusinessType','#businessType'].forEach(selector=>{const select=pick(selector);if(!select)return;const current=select.value;select.innerHTML=businessTypes.map(type=>`<option>${type}</option>`).join('');if(businessTypes.includes(current))select.value=current});
   const fail=message=>{pick('#authError').textContent=message};
   document.addEventListener('submit',async event=>{
     if(event.target.id!=='ownerAuthForm')return;
