@@ -77,6 +77,14 @@ app.get('/api/businesses', requireAuth, asyncRoute(async (req, res) => {
   res.json(rows);
 }));
 
+app.post('/api/businesses/recover-goshen-workspace', requireAuth, asyncRoute(async (req, res) => {
+  const { rows: admins } = await pool.query('select is_platform_admin from public.app_users where id = $1', [req.user.sub]);
+  if (!admins[0]?.is_platform_admin) return res.status(403).json({ error: 'נדרשת הרשאת אדמין ראשי לשחזור עסק' });
+  const { rows } = await pool.query("update public.businesses set owner_id = $1 where id = 'c65be2c0-af7d-4565-99ec-c8376adaf85a' and name = 'גושן בע\"מ' returning id, name, business_type as \"businessType\", public_id as \"publicId\"", [req.user.sub]);
+  if (!rows[0]) return res.status(404).json({ error: 'העסק לא נמצא' });
+  res.json(rows[0]);
+}));
+
 app.post('/api/businesses', requireAuth, asyncRoute(async (req, res) => {
   const input = businessInput.parse(req.body);
   const client = await pool.connect();
