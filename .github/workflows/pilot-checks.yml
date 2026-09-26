@@ -1,6 +1,9 @@
-# Manual-only until the database migration step is reviewed.
+# Runs on beautyflow-v1 only after this draft PR is reviewed and merged.
 name: Pilot API checks
 on:
+  push:
+    branches:
+      - beautyflow-v1
   workflow_dispatch:
 permissions:
   contents: read
