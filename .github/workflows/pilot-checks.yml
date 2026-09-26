@@ -1,0 +1,43 @@
+# Manual-only until the database migration step is reviewed.
+name: Pilot API checks
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pilot:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: beautyflow_ci
+          POSTGRES_USER: beautyflow_ci
+          POSTGRES_PASSWORD: beautyflow_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U beautyflow_ci -d beautyflow_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: server
+    env:
+      DATABASE_URL: postgresql://beautyflow_ci:beautyflow_ci_only@127.0.0.1:5432/beautyflow_ci
+      JWT_SECRET: disposable-ci-secret-not-for-production
+      CLIENT_ORIGIN: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Check local test database before migration
+        run: node --input-type=module -e "const u = new URL(process.env.DATABASE_URL); if (u.hostname !== '127.0.0.1' || u.pathname !== '/beautyflow_ci') process.exit(1)"
+      - name: Set up disposable CI database
+        run: pnpm run db:migrate
+      - name: Exercise pilot API flows
+        run: node --test test/pilot.test.mjs
