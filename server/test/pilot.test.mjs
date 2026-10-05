@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import crypto from 'node:crypto';
+import { once } from 'node:events';
 
 // Refuse to send test requests to a live server or a non-test database.
 const database = new URL(process.env.DATABASE_URL ?? '');
@@ -12,6 +13,7 @@ process.env.VERCEL = '1'; // Import the Express app without opening its default 
 const { default: app } = await import('../src/index.js');
 const { pool } = await import('../src/database.js');
 const server = app.listen(0, '127.0.0.1');
+await once(server, 'listening');
 const base = `http://127.0.0.1:${server.address().port}`;
 after(async () => { await new Promise(resolve => server.close(resolve)); await pool.end(); });
 
