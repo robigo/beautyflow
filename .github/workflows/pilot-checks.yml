@@ -50,9 +50,7 @@ jobs:
         run: node --test test/pilot.test.mjs
 
       - name: Install isolated browser test tools
-        run: |
-          npm install --prefix test/browser --ignore-scripts
-          node --input-type=module -e "import {readFileSync} from 'node:fs'; console.log('BROWSER_LOCKFILE_BASE64:'+readFileSync('test/browser/package-lock.json').toString('base64'))"
+        run: npm ci --prefix test/browser --ignore-scripts
       - name: Install Chromium
         run: test/browser/node_modules/.bin/playwright install --with-deps chromium
       - name: Check UI prices and public booking

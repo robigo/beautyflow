@@ -6,12 +6,15 @@ GitHub Actions runs the existing API test and these Chromium checks for pull req
 
 The test imports the real Express app and serves the real repository HTML from one ephemeral loopback HTTP server. Only test HTTP responses rewrite the hardcoded API/Supabase URLs and CDN scripts to local addresses. The real Chart.js and Supabase SDKs are served from test dependencies. All browser requests outside this local origin, and all legacy Supabase requests, are blocked and fail the test. Service workers are disabled. No real deployed application or Supabase database is used.
 
-Run from `server/`, with a disposable PostgreSQL 16 database already initialized via `pnpm run db:migrate`:
+Run from `server/`, with a disposable PostgreSQL 16 instance available:
 
 ```sh
 export DATABASE_URL=postgresql://beautyflow_ci:beautyflow_ci_only@127.0.0.1:5432/beautyflow_ci
 export JWT_SECRET=disposable-ci-secret-not-for-production
-npm install --prefix test/browser --package-lock=false --ignore-scripts
+node --input-type=module -e "const u = new URL(process.env.DATABASE_URL); if (u.hostname !== '127.0.0.1' || u.pathname !== '/beautyflow_ci') process.exit(1)"
+pnpm install --frozen-lockfile
+pnpm run db:migrate
+npm ci --prefix test/browser --ignore-scripts
 test/browser/node_modules/.bin/playwright install --with-deps chromium
 npm test --prefix test/browser
 ```
