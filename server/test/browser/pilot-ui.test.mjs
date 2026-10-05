@@ -126,6 +126,12 @@ async function appointmentPrices(page) {
     assert.match(await row.locator('td').nth(3).innerText(), new RegExp(`^₪\\s*${price}$`));
   }
 }
+async function restored(page) {
+  await page.waitForFunction(() =>
+    !document.documentElement.classList.contains('restoring-session') &&
+    document.querySelector('#authGate').classList.contains('hide'));
+  await visible(page, '#dashboard.active');
+}
 async function diagnostics(page, operation) {
   try { await operation(); }
   catch (error) {
@@ -150,11 +156,12 @@ test('owner UI persists service and appointment prices through reload and a fres
     assert.equal((await saved).status(), 201);
     await servicePrice(page);
     const date = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
-    // Reload activates the normal session-restoration handlers as a returning owner.
-    await page.reload();
-    await page.locator('#authGate').waitFor({ state: 'hidden' });
-    await visible(page, '#dashboard.active');
     for (const [name, price, time] of [['Paid pilot', '135', '10:00'], ['Free pilot', '0', '11:00']]) {
+      // Cover both a fresh login and the session-restoration submit handler.
+      if (name === 'Free pilot') {
+        await page.reload();
+        await restored(page);
+      }
       await page.locator('[data-screen="book"]').click();
       await page.locator('#bookName').fill(name);
       await page.locator('#bookPhone').fill(name === 'Paid pilot' ? '0500000001' : '0500000002');
@@ -178,7 +185,7 @@ test('owner UI persists service and appointment prices through reload and a fres
     await checkDatabase();
     await appointmentPrices(page);
     await page.reload();
-    await visible(page, '#dashboard.active');
+    await restored(page);
     await servicePrice(page);
     await appointmentPrices(page);
     await page.locator('#logoutButton').click();
