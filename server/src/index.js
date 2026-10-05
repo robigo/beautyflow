@@ -150,7 +150,7 @@ app.post('/api/businesses/:businessId/appointments', requireAuth, asyncRoute(asy
       if (block) throw Object.assign(new Error('הזמן שנבחר חסום'), { statusCode: 409 });
     }
     const customer = item.phone ? await client.query('insert into customers (full_name, phone) values ($1, $2) on conflict (full_name, phone) do update set full_name = customers.full_name returning id', [item.customerName, item.phone]) : { rows: [] };
-    const result = await client.query('insert into appointments (customer_id, customer_name, phone, service_id, service_name, resource_id, price, starts_at, ends_at, notes, status) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *', [customer.rows[0]?.id ?? null, item.customerName, item.phone ?? null, service?.id ?? null, service?.name ?? item.serviceName, resourceId, service?.price ?? item.price ?? 0, item.startsAt, endsAt, item.notes ?? null, item.status ?? 'ממתין']);
+    const result = await client.query('insert into appointments (customer_id, customer_name, phone, service_id, service_name, resource_id, price, starts_at, ends_at, notes, status) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *', [customer.rows[0]?.id ?? null, item.customerName, item.phone ?? null, service?.id ?? null, service?.name ?? item.serviceName, resourceId, item.price ?? service?.price ?? 0, item.startsAt, endsAt, item.notes ?? null, item.status ?? 'ממתין']);
     return result.rows[0];
   });
   if (!row) return res.status(400).json({ error: 'השירות אינו זמין' });
