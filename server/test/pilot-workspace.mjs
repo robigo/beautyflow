@@ -10,7 +10,9 @@ export async function startPilot() {
   // Never load a production .env or import the API before validating the DB.
   const connectionString = process.env.DATABASE_URL || 'postgresql://beautyflow_ci:beautyflow_ci_only@127.0.0.1:5432/beautyflow_ci';
   const database = new URL(connectionString);
-  if (database.hostname !== '127.0.0.1' || database.pathname !== '/beautyflow_ci') {
+  if (!['postgres:', 'postgresql:'].includes(database.protocol) ||
+      database.hostname !== '127.0.0.1' || database.pathname !== '/beautyflow_ci' ||
+      database.search || database.hash) {
     throw new Error('Isolated pilot requires 127.0.0.1/beautyflow_ci');
   }
   const port = Number(process.env.PILOT_PORT ?? 8080);

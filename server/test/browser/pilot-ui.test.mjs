@@ -204,16 +204,23 @@ test('public booking displays the service price and stores it on the appointment
   });
 });
 
-test('manual pilot rejects a non-local database before connecting', { timeout: 15000 }, async () => {
-  const child = spawn(process.execPath, [fileURLToPath(new URL('../pilot-workspace.mjs', import.meta.url))], {
-    env: { ...process.env, DATABASE_URL: 'postgresql://ignored@production.invalid/beautyflow_ci' },
-    stdio: ['ignore', 'pipe', 'pipe']
-  });
-  let errors = '';
-  child.stderr.on('data', chunk => errors += chunk);
-  const [code] = await once(child, 'close');
-  assert.equal(code, 1);
-  assert.match(errors, /requires 127\.0\.0\.1\/beautyflow_ci/);
+test('manual pilot rejects unsafe database URLs before connecting', { timeout: 15000 }, async () => {
+  for (const url of [
+    'postgresql://ignored@production.invalid/beautyflow_ci',
+    'postgresql://ignored@127.0.0.1/production',
+    // pg allows query parameters to override a URL host; refuse all parameters.
+    'postgresql://ignored@127.0.0.1/beautyflow_ci?host=production.invalid'
+  ]) {
+    const child = spawn(process.execPath, [fileURLToPath(new URL('../pilot-workspace.mjs', import.meta.url))], {
+      env: { ...process.env, DATABASE_URL: url },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let errors = '';
+    child.stderr.on('data', chunk => errors += chunk);
+    const [code] = await once(child, 'close');
+    assert.equal(code, 1);
+    assert.match(errors, /requires 127\.0\.0\.1\/beautyflow_ci/);
+  }
 });
 
 test('manual pilot starts, restricts connections and supports a phone-sized owner flow', { timeout: 90000 }, async t => {
