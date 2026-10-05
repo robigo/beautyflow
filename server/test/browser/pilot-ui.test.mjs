@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { once } from 'node:events';
-import { createServer } from 'node:http';
-import { readFile, mkdir } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { chromium } from 'playwright';
+import { createLocalApp } from './local-app.mjs';
 
 // Check before importing the app: importing it opens a database pool.
 const database = new URL(process.env.DATABASE_URL ?? '');
@@ -15,37 +17,8 @@ if (!process.env.JWT_SECRET) throw new Error('Set a disposable JWT_SECRET');
 process.env.VERCEL = '1';
 const { default: app } = await import('../../src/index.js');
 const { pool } = await import('../../src/database.js');
-const root = new URL('../../../', import.meta.url);
-const scripts = {
-  '/test-supabase.js': new URL('node_modules/@supabase/supabase-js/dist/umd/supabase.js', import.meta.url),
-  '/test-chart.js': new URL('node_modules/chart.js/dist/chart.umd.js', import.meta.url)
-};
 let origin, browser;
-// Rewrite addresses in the test response only; the shipped HTML is unchanged.
-const server = createServer(async (req, res) => {
-  const path = new URL(req.url, 'http://127.0.0.1').pathname;
-  if (path.startsWith('/api/')) return app(req, res);
-  try {
-    if (scripts[path]) {
-      res.setHeader('Content-Type', 'text/javascript');
-      return res.end(await readFile(scripts[path]));
-    }
-    if (path === '/' || path === '/index.html' || path === '/booking.html') {
-      let html = await readFile(new URL(path === '/booking.html' ? 'booking.html' : 'index.html', root), 'utf8');
-      html = html.replaceAll('https://beautyflow-ihl7.vercel.app', origin)
-        .replaceAll('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', '/test-supabase.js')
-        .replaceAll('https://cdn.jsdelivr.net/npm/chart.js', '/test-chart.js')
-        .replace(/https:\/\/[a-z0-9]+\.supabase\.co/g, origin + '/unused-supabase');
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.end(html);
-    }
-    if (/^\/assets\/[a-zA-Z0-9_.-]+$/.test(path)) return res.end(await readFile(new URL(path.slice(1), root)));
-    res.writeHead(404).end();
-  } catch (error) {
-    console.error(error.message);
-    res.writeHead(500).end('Test fixture failed');
-  }
-});
+const server = createLocalApp(app);
 before(async () => {
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -75,12 +48,12 @@ async function fixture() {
   const resource = await api(`/api/businesses/${business.id}/resources`, { token: user.token, method: 'POST', body: { name: 'Test room', resourceType: 'Room' } });
   return { email, password, token: user.token, business, resource };
 }
-async function isolatedPage(t) {
+async function isolatedPage(t, allowedOrigin = origin) {
   const context = await browser.newContext({ timezoneId: 'Asia/Jerusalem', serviceWorkers: 'block', viewport: { width: 1440, height: 1000 } });
   const blocked = [], errors = [];
   await context.route('**/*', route => {
     const url = new URL(route.request().url());
-    if (url.origin !== origin || url.pathname.startsWith('/unused-supabase')) {
+    if (url.origin !== allowedOrigin || url.pathname.startsWith('/unused-supabase')) {
       blocked.push(url.origin + url.pathname); // Do not log credentials or query strings.
       return route.abort('blockedbyclient');
     }
@@ -228,5 +201,88 @@ test('public booking displays the service price and stores it on the appointment
     assert.ok(appointment);
     assert.equal(Number(appointment.price), 120);
     assert.equal(appointment.service_id, service.id);
+  });
+});
+
+test('manual pilot rejects unsafe database URLs before connecting', { timeout: 15000 }, async () => {
+  for (const url of [
+    'postgresql://ignored@production.invalid/beautyflow_ci',
+    'postgresql://ignored@127.0.0.1/production',
+    // pg allows query parameters to override a URL host; refuse all parameters.
+    'postgresql://ignored@127.0.0.1/beautyflow_ci?host=production.invalid'
+  ]) {
+    const child = spawn(process.execPath, [fileURLToPath(new URL('../pilot-workspace.mjs', import.meta.url))], {
+      env: { ...process.env, DATABASE_URL: url },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let errors = '';
+    child.stderr.on('data', chunk => errors += chunk);
+    const [code] = await once(child, 'close');
+    assert.equal(code, 1);
+    assert.match(errors, /requires 127\.0\.0\.1\/beautyflow_ci/);
+  }
+});
+
+test('manual pilot starts, restricts connections and supports a phone-sized owner flow', { timeout: 90000 }, async t => {
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../pilot-workspace.mjs', import.meta.url))], {
+    env: { ...process.env, PILOT_PORT: '0' },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  t.after(async () => {
+    if (child.exitCode !== null) return;
+    const closed = once(child, 'close');
+    child.kill('SIGTERM');
+    await closed;
+  });
+  const ready = await new Promise((resolve, reject) => {
+    let output = '', errors = '';
+    child.stderr.on('data', chunk => errors += chunk);
+    child.on('error', reject);
+    child.on('exit', code => reject(new Error(`Pilot exited ${code}: ${errors}`)));
+    child.stdout.on('data', chunk => {
+      output += chunk;
+      const match = output.match(/PILOT_READY (\{[^\n]+\})/);
+      if (match) resolve(JSON.parse(match[1]));
+    });
+  });
+  const response = await fetch(ready.url);
+  assert.match(response.headers.get('Content-Security-Policy'), /connect-src 'self'/);
+  const html = await response.text();
+  assert.ok(!html.includes('https://beautyflow-ihl7.vercel.app'));
+  assert.ok(!/https:\/\/[a-z0-9]+\.supabase\.co/.test(html));
+  assert.deepEqual(await (await fetch(ready.url + '/pilot-info')).json(), { isolated: true, database: 'beautyflow_ci', postgresMajor: 16 });
+  assert.equal((await fetch(ready.url + '/unused-supabase/rest/v1/customers')).status, 403);
+  const page = await isolatedPage(t, ready.url);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await diagnostics(page, async () => {
+    await page.goto(ready.url);
+    await visible(page, '#pilotBanner');
+    // CSP must stop the fetch before the browser route sees any external request.
+    assert.equal(await page.evaluate(async () => {
+      try { await fetch('https://example.invalid/api/health'); return false; }
+      catch { return true; }
+    }), true);
+    assert.equal(await page.locator('#ownerEmail').inputValue(), 'pilot-owner@example.test');
+    await page.locator('#ownerAuthSubmit').click();
+    await visible(page, '#workspacePicker');
+    await page.locator('#enterBusiness').click();
+    await page.locator('#authGate').waitFor({ state: 'hidden' });
+    await page.locator('.mobilebar select').selectOption('book');
+    await page.locator('#bookName').fill('Phone pilot');
+    await page.locator('#bookPhone').fill('0500000004');
+    await page.locator('#bookTreatment').selectOption({ label: 'טיפול בדיקה' });
+    await page.locator('#bookPrice').fill('135');
+    await page.locator('#bookDate').fill(new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10));
+    await page.locator('#bookTime').fill('13:00');
+    const saved = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/appointments'));
+    await page.locator('#appointmentForm button').click();
+    assert.equal((await saved).status(), 201);
+    await visible(page, '#calendar.active');
+    await page.reload();
+    await restored(page);
+    await page.locator('.mobilebar select').selectOption('calendar');
+    const row = page.locator('#calendarRows tr').filter({ hasText: 'Phone pilot' });
+    await row.waitFor({ state: 'visible' });
+    assert.match(await row.locator('td').nth(3).innerText(), /135/);
   });
 });

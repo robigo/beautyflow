@@ -20,3 +20,5 @@ npm test --prefix test/browser
 ```
 
 Failure screenshots contain only synthetic test data and are uploaded by CI for seven days. Test tools are separate from production server dependencies.
+
+The shared HTTP adapter also serves the manual pilot described in [PILOT.md](../PILOT.md). Its HTML enforces a same-origin Content Security Policy, including behind a Codespaces proxy. CI starts that pilot in a separate process, verifies rejection of a non-local database, and exercises login and price persistence at a phone-sized viewport.
