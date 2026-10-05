@@ -1,0 +1,30 @@
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm
+    command: sleep infinity
+    working_dir: /workspaces/beautyflow
+    volumes:
+      - ../..:/workspaces/beautyflow:cached
+    # Sharing the network namespace keeps PostgreSQL on loopback, so the
+    # exact 127.0.0.1/beautyflow_ci safety check remains valid.
+    network_mode: service:postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://beautyflow_ci:beautyflow_ci_only@127.0.0.1:5432/beautyflow_ci
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: beautyflow_ci
+      POSTGRES_USER: beautyflow_ci
+      POSTGRES_PASSWORD: beautyflow_ci_only
+    # No host port or persistent database volume.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beautyflow_ci -d beautyflow_ci"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

@@ -1,0 +1,14 @@
+{
+  "name": "BeautyFlow isolated pilot",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/beautyflow",
+  "remoteUser": "node",
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": { "label": "BeautyFlow isolated pilot", "onAutoForward": "notify" }
+  },
+  "postCreateCommand": "cd server && corepack pnpm install --frozen-lockfile && npm ci --prefix test/browser --ignore-scripts",
+  "postStartCommand": "nohup node server/test/pilot-workspace.mjs > /tmp/beautyflow-pilot.log 2>&1 &",
+  "shutdownAction": "stopCompose"
+}

@@ -51,6 +51,8 @@ jobs:
 
       - name: Install isolated browser test tools
         run: npm ci --prefix test/browser --ignore-scripts
+      - name: Validate isolated pilot container configuration
+        run: docker compose -f ../.devcontainer/pilot/docker-compose.yml config --quiet
       - name: Install Chromium
         run: test/browser/node_modules/.bin/playwright install --with-deps chromium
       - name: Check UI prices and public booking
