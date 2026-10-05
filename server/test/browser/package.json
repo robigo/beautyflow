@@ -1,0 +1,11 @@
+{
+  "name": "beautyflow-isolated-browser-checks",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test pilot-ui.test.mjs" },
+  "devDependencies": {
+    "playwright": "1.58.2",
+    "@supabase/supabase-js": "2.49.1",
+    "chart.js": "4.4.8"
+  }
+}
