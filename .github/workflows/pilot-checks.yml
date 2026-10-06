@@ -64,6 +64,22 @@ jobs:
       - name: Build isolated pilot container
         working-directory: ${{ github.workspace }}
         run: docker build -f deploy/pilot/Dockerfile -t beautyflow-pilot:ci .
+      - name: Boot and smoke-test isolated pilot stack
+        working-directory: ${{ github.workspace }}
+        env:
+          PILOT_DB_PASSWORD: ci_only_hex_password_12345678901234567890
+          PILOT_JWT_SECRET: ci_only_jwt_secret_12345678901234567890
+        run: |
+          trap 'docker compose -f deploy/pilot/compose.yaml down' EXIT
+          docker compose -f deploy/pilot/compose.yaml up -d --build
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'
+          curl -fsS http://127.0.0.1:8080/ -o /tmp/beautyflow-pilot-index.html
+          curl -fsS http://127.0.0.1:8080/booking.html -o /tmp/beautyflow-pilot-booking.html
+          if grep -E 'beautyflow-ihl7.vercel.app|cykgkqkmdeimfsnybuqg.supabase.co' /tmp/beautyflow-pilot-index.html /tmp/beautyflow-pilot-booking.html; then exit 1; fi
       - name: Upload browser failure screenshot
         if: failure()
         uses: actions/upload-artifact@v4
