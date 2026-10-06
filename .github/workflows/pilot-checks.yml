@@ -55,6 +55,15 @@ jobs:
         run: test/browser/node_modules/.bin/playwright install --with-deps chromium
       - name: Check UI prices and public booking
         run: npm test --prefix test/browser
+      - name: Validate isolated pilot Compose
+        working-directory: ${{ github.workspace }}
+        env:
+          PILOT_DB_PASSWORD: ci_only_hex_password_12345678901234567890
+          PILOT_JWT_SECRET: ci_only_jwt_secret_12345678901234567890
+        run: docker compose -f deploy/pilot/compose.yaml config -q
+      - name: Build isolated pilot container
+        working-directory: ${{ github.workspace }}
+        run: docker build -f deploy/pilot/Dockerfile -t beautyflow-pilot:ci .
       - name: Upload browser failure screenshot
         if: failure()
         uses: actions/upload-artifact@v4
