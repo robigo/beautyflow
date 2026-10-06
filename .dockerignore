@@ -1,0 +1,8 @@
+.git
+upload
+**/node_modules
+**/.env
+**/.env.*
+deploy/pilot/pilot.env
+server/test
+*.log
