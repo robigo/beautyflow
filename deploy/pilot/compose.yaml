@@ -1,0 +1,68 @@
+name: beautyflow-pilot
+
+x-app-image: &app-image
+  image: beautyflow-pilot-app:local
+  build:
+    context: ../..
+    dockerfile: deploy/pilot/Dockerfile
+
+x-app-environment: &app-environment
+  DATABASE_URL: postgresql://beautyflow:${PILOT_DB_PASSWORD:?Set PILOT_DB_PASSWORD in pilot.env}@db:5432/beautyflow_pilot
+  JWT_SECRET: ${PILOT_JWT_SECRET:?Set PILOT_JWT_SECRET in pilot.env}
+  PLATFORM_ADMIN_EMAIL: ${PILOT_ADMIN_EMAIL:-}
+  CLIENT_ORIGIN: http://localhost:8080,http://127.0.0.1:8080
+  NODE_OPTIONS: --max-old-space-size=192
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: beautyflow_pilot
+      POSTGRES_USER: beautyflow
+      POSTGRES_PASSWORD: ${PILOT_DB_PASSWORD:?Set PILOT_DB_PASSWORD in pilot.env}
+    command:
+      - postgres
+      - -c
+      - max_connections=20
+      - -c
+      - shared_buffers=32MB
+      - -c
+      - work_mem=1MB
+      - -c
+      - maintenance_work_mem=16MB
+    volumes:
+      - pilot_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beautyflow -d beautyflow_pilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *app-image
+    environment: *app-environment
+    command: ["sh", "-ec", "node check-pilot-db.mjs && node src/migrate.js"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    <<: *app-image
+    environment: *app-environment
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  pilot_data:
