@@ -19,8 +19,10 @@ set +a
 
 [[ -n "${API_DOMAIN:-}" && "$API_DOMAIN" != "api.example.com" ]] && pass "API domain configured" || bad "API_DOMAIN is not configured"
 [[ "${CLIENT_ORIGIN:-}" == https://* ]] && pass "CLIENT_ORIGIN uses HTTPS" || bad "CLIENT_ORIGIN must be HTTPS"
-(( ${#JWT_SECRET:-0} >= 32 )) && pass "JWT secret length >= 32" || bad "JWT_SECRET is too short"
-[[ "${DATABASE_URL:-}" != *localhost* && "${DATABASE_URL:-}" != *127.0.0.1* ]] && pass "Database is not localhost" || bad "Production DB points to localhost"
+jwt_length=0
+[[ -n "${JWT_SECRET:-}" ]] && jwt_length=${#JWT_SECRET}
+(( jwt_length >= 32 )) && pass "JWT secret length >= 32" || bad "JWT_SECRET is too short"
+[[ -n "${DATABASE_URL:-}" && "$DATABASE_URL" != *localhost* && "$DATABASE_URL" != *127.0.0.1* ]] && pass "Database is not localhost" || bad "Production DB points to localhost or is missing"
 
 rendered="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config 2>/dev/null || true)"
 [[ -n "$rendered" ]] || bad "Compose config failed"
