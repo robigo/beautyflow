@@ -23,9 +23,12 @@ test('reset UI: requests, errors, fragment privacy, password confirmation and mo
     throw new Error('Unexpected external request');
   });
   const page = await context.newPage();
+  // Email links open a fresh document. A same-document hash navigation would
+  // not rerun the page's startup code after the request form was already open.
+  const navigate = async url => { await page.goto('about:blank'); await page.goto(url); };
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(origin + '/reset-password.html');
+  await navigate(origin + '/reset-password.html');
   await page.fill('#email', 'owner@example.test');
   await page.click('#forgotForm button');
   await page.waitForFunction(() => document.querySelector('#status').textContent === 'בדקו את תיבת הדואר');
@@ -35,7 +38,7 @@ test('reset UI: requests, errors, fragment privacy, password confirmation and mo
   await page.click('#forgotForm button');
   await page.waitForFunction(() => document.querySelector('#status').classList.contains('error'));
   assert.match(await page.textContent('#status'), /אינו זמין/);
-  await page.goto(origin + '/reset-password.html#token=' + token);
+  await navigate(origin + '/reset-password.html#token=' + token);
   assert.equal(new URL(page.url()).hash, '');
   assert.ok(await page.isVisible('#resetForm'));
   await page.fill('#password', 'new-password-123');
@@ -50,14 +53,14 @@ test('reset UI: requests, errors, fragment privacy, password confirmation and mo
   await page.waitForFunction(() => document.querySelector('#resetForm').classList.contains('hidden'));
   assert.deepEqual(calls.at(-1).body, { token, password: 'new-password-123' });
   assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
-  await page.goto(origin + '/reset-password.html#token=' + token);
+  await navigate(origin + '/reset-password.html#token=' + token);
   status = 400; result = { error: 'expired' };
   await page.fill('#password', 'new-password-123');
   await page.fill('#confirm', 'new-password-123');
   await page.click('#resetForm button');
   await page.waitForFunction(() => !document.querySelector('#requestAgain').classList.contains('hidden'));
   assert.ok(!(await page.isVisible('#resetForm')));
-  await page.goto(origin + '/reset-password.html#token=malformed');
+  await navigate(origin + '/reset-password.html#token=malformed');
   assert.equal(new URL(page.url()).hash, '');
   assert.ok(await page.isVisible('#requestAgain'));
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
