@@ -42,6 +42,8 @@ jobs:
           node-version: '22'
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      - name: Password reset and build safety unit tests
+        run: node --test test/password-reset.test.js test/vercel-build.test.js
       - name: Check local test database before migration
         run: node --input-type=module -e "const u = new URL(process.env.DATABASE_URL); if (u.hostname !== '127.0.0.1' || u.pathname !== '/beautyflow_ci') process.exit(1)"
       - name: Set up disposable CI database
@@ -63,3 +65,4 @@ jobs:
           path: server/test/browser/artifacts/
           if-no-files-found: ignore
           retention-days: 7
+
