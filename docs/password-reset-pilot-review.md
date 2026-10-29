@@ -33,10 +33,18 @@ The integration adds reset routes and login session versioning to beautyflow-v1.
 2. Confirm a separate Preview database containing synthetic test accounts only. Review the additive platform SQL (token hash, expiry, session version and limits table). Apply it separately only after verifying the target. Deploying new auth middleware before these columns exist breaks authenticated requests.
 3. Set `DATABASE_URL`, `JWT_SECRET`, `CLIENT_ORIGIN`, `RESEND_API_KEY`, `PASSWORD_RESET_FROM` (verified sending domain) and `PASSWORD_RESET_URL` (the matching frontend's reset page) through the hosting secret/environment controls. Never commit real values. `CLIENT_ORIGIN` is an origin, without a path, and must match the chosen frontend.
 4. Use a consenting test recipient/account; verify delivery, one successful reset, old JWT/password rejection, replay rejection and new login. Also check expired/replaced links and service-unavailable behavior. No real mail was sent by this work.
-5. Keep Production migration/deployment blocked until the above mapping, schema and environment dependencies are verified and the intended Production action is approved.
+5. The user has authorized progressing through Production in this conversation. No repeat approval is needed for the same scope. Execution remains blocked on verification of the actual database, schema, environment dependencies and isolated mail E2E; authorization does not establish that these dependencies are ready.
 
 ## Production promotion
 
 `beautyflow-v1` is the integration base, while `main` drives both live entry points. The complete candidate must carry forward the eleven later pilot commits plus the reset integration; merging PR #5 alone loses the intended booking/price improvements. Review the full candidate against main and keep it draft until the isolated email E2E test passes.
 
 Before Production: verify the actual target database and recovery plan; confirm required server variables and verified sender; apply the reviewed additive schema separately before activating auth middleware that queries token_version; release matching server/frontend versions and verify login, booking and preserved prices. Builds never migrate. Never commit real credentials. Do not promote merely because builds are green.
+
+## Current delivery status — 2026-10-29
+
+- Production candidate: [draft PR #7](https://github.com/robigo/beautyflow/pull/7), targeting `main`, includes the pilot fixes and reset integration together. It has not been merged.
+- Code/config head `0e98b260ed4f0d7b91e4b5e47da7ac41354806ba` passed [the latest pilot CI](https://github.com/robigo/beautyflow/actions/runs/40917246985) and [the other PR run](https://github.com/robigo/beautyflow/actions/runs/40917208082). Both Vercel project statuses report success on that head. A later documentation-only commit must not be confused with the tested code SHA.
+- Production release is NOT completed: the observed active API deployment remains `main` / `424c45e` according to the supplied Vercel screenshot. Successful Preview builds are not evidence of Production activation.
+- Remaining execution dependencies: verify an isolated Preview database and synthetic test account; configure matching Preview frontend/API origins and reset URL; verify server-side mail configuration and sender; apply reviewed schema to the verified isolated target; complete actual email E2E. Before Production migration, separately verify the Production database and recovery plan.
+- Vercel private settings/build logs and hosted database access are unavailable through the currently enabled connections. No credentials, API keys or database connection strings should be pasted into this document, the PR or chat.
