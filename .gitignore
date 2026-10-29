@@ -5,3 +5,5 @@ Thumbs.db
 .env.*
 !.env.example
 server/node_modules/
+server/test/browser/node_modules/
+server/test/browser/artifacts/

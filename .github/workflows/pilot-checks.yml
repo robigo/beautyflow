@@ -1,0 +1,70 @@
+# Checks integration and Production-candidate changes using a disposable database only.
+name: Pilot API checks
+on:
+  pull_request:
+    branches:
+      - beautyflow-v1
+      - main
+  push:
+    branches:
+      - beautyflow-v1
+      - main
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: beautyflow_ci
+          POSTGRES_USER: beautyflow_ci
+          POSTGRES_PASSWORD: beautyflow_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U beautyflow_ci -d beautyflow_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: server
+    env:
+      DATABASE_URL: postgresql://beautyflow_ci:beautyflow_ci_only@127.0.0.1:5432/beautyflow_ci
+      JWT_SECRET: disposable-ci-secret-not-for-production
+      CLIENT_ORIGIN: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Password reset and build safety unit tests
+        run: node --test test/password-reset.test.js test/vercel-build.test.js
+      - name: Check local test database before migration
+        run: node --input-type=module -e "const u = new URL(process.env.DATABASE_URL); if (u.hostname !== '127.0.0.1' || u.pathname !== '/beautyflow_ci') process.exit(1)"
+      - name: Set up disposable CI database
+        run: pnpm run db:migrate
+      - name: Exercise pilot API flows
+        run: node --test test/pilot.test.mjs
+
+      - name: Install isolated browser test tools
+        run: npm ci --prefix test/browser --ignore-scripts
+      - name: Install Chromium
+        run: test/browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Check UI prices and public booking
+        run: npm test --prefix test/browser
+      - name: Upload browser failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pilot-browser-failure
+          path: server/test/browser/artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
+

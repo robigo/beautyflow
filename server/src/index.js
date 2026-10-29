@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import { z } from 'zod';
 import { pool, provisionTenant, schemaNameFor, withTenant } from './database.js';
 import { hashPassword, requireAuth, signToken, verifyPassword } from './auth.js';
+import { createPasswordResetHandlers } from './password-reset.js';
 
 if (!process.env.DATABASE_URL || !process.env.JWT_SECRET) throw new Error('DATABASE_URL and JWT_SECRET are required');
 
@@ -40,6 +41,10 @@ async function ownedBusiness(userId, businessId) {
 
 app.get(['/health', '/api/health'], asyncRoute(async (_req, res) => { await pool.query('select 1'); res.json({ ok: true }); }));
 
+const passwordReset = createPasswordResetHandlers({ pool, hashPassword });
+app.post('/api/auth/forgot-password', asyncRoute(passwordReset.forgot));
+app.post('/api/auth/reset-password', asyncRoute(passwordReset.reset));
+
 app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const { email, password } = credentials.parse(req.body);
   const passwordHash = await hashPassword(password);
@@ -58,7 +63,7 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
 
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const { email, password } = credentials.parse(req.body);
-  const { rows } = await pool.query('select id, email, password_hash, is_platform_admin from public.app_users where email = $1', [email]);
+  const { rows } = await pool.query('select id, email, password_hash, is_platform_admin, token_version from public.app_users where email = $1', [email]);
   const user = rows[0];
   if (!user || !(await verifyPassword(password, user.password_hash))) return res.status(401).json({ error: 'אימייל או סיסמה שגויים' });
   const isPlatformAdmin = user.is_platform_admin || isPlatformAdminEmail(user.email);
@@ -150,7 +155,7 @@ app.post('/api/businesses/:businessId/appointments', requireAuth, asyncRoute(asy
       if (block) throw Object.assign(new Error('הזמן שנבחר חסום'), { statusCode: 409 });
     }
     const customer = item.phone ? await client.query('insert into customers (full_name, phone) values ($1, $2) on conflict (full_name, phone) do update set full_name = customers.full_name returning id', [item.customerName, item.phone]) : { rows: [] };
-    const result = await client.query('insert into appointments (customer_id, customer_name, phone, service_id, service_name, resource_id, price, starts_at, ends_at, notes, status) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *', [customer.rows[0]?.id ?? null, item.customerName, item.phone ?? null, service?.id ?? null, service?.name ?? item.serviceName, resourceId, service?.price ?? item.price ?? 0, item.startsAt, endsAt, item.notes ?? null, item.status ?? 'ממתין']);
+    const result = await client.query('insert into appointments (customer_id, customer_name, phone, service_id, service_name, resource_id, price, starts_at, ends_at, notes, status) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *', [customer.rows[0]?.id ?? null, item.customerName, item.phone ?? null, service?.id ?? null, service?.name ?? item.serviceName, resourceId, item.price ?? service?.price ?? 0, item.startsAt, endsAt, item.notes ?? null, item.status ?? 'ממתין']);
     return result.rows[0];
   });
   if (!row) return res.status(400).json({ error: 'השירות אינו זמין' });
@@ -301,3 +306,4 @@ if (!process.env.VERCEL) {
 }
 
 export default app;
+
