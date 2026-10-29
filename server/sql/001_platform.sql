@@ -19,3 +19,16 @@ create table if not exists public.businesses (
 );
 
 create index if not exists businesses_owner_id_idx on public.businesses(owner_id);
+
+-- Password reset tokens are random, hashed, expiring and consumed atomically.
+alter table public.app_users add column if not exists password_reset_token_hash text;
+alter table public.app_users add column if not exists password_reset_expires_at timestamptz;
+alter table public.app_users add column if not exists token_version integer not null default 0;
+create unique index if not exists app_users_password_reset_token_idx
+  on public.app_users(password_reset_token_hash) where password_reset_token_hash is not null;
+create table if not exists public.password_reset_limits (
+  key_hash text primary key,
+  attempts integer not null,
+  window_ends_at timestamptz not null
+);
+create index if not exists password_reset_limits_expiry_idx on public.password_reset_limits(window_ends_at);
