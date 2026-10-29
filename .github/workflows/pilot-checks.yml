@@ -1,12 +1,14 @@
-# Checks pull requests targeting beautyflow-v1 and pushes to that branch.
+# Checks integration and Production-candidate changes using a disposable database only.
 name: Pilot API checks
 on:
   pull_request:
     branches:
       - beautyflow-v1
+      - main
   push:
     branches:
       - beautyflow-v1
+      - main
   workflow_dispatch:
 permissions:
   contents: read
