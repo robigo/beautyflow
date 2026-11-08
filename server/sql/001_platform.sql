@@ -1,4 +1,13 @@
 create extension if not exists pgcrypto;
+-- UUID GiST operator classes must be visible to every tenant, not installed
+-- under the first tenant's search_path. Existing index dependencies are kept.
+create extension if not exists btree_gist with schema public;
+do $$ begin
+  if exists (select 1 from pg_extension e join pg_namespace n on n.oid=e.extnamespace
+             where e.extname='btree_gist' and n.nspname<>'public') then
+    alter extension btree_gist set schema public;
+  end if;
+end $$;
 
 create table if not exists public.app_users (
   id uuid primary key default gen_random_uuid(),

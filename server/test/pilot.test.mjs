@@ -42,6 +42,12 @@ test('pilot flows: identity, tenant access and public booking', async () => {
   const businessA = await expectStatus('/api/businesses', { token: a, method: 'POST', body: { name: 'Pilot A', businessType: 'Studio' } }, 201);
   const businessB = await expectStatus('/api/businesses', { token: b, method: 'POST', body: { name: 'Pilot B', businessType: 'Studio' } }, 201);
   assert.notEqual(businessA.id, businessB.id);
+  const constraints = await pool.query(`select count(*)::int as total from pg_constraint
+    where conname='appointments_resource_time_exclusion' and conrelid in (
+      select c.oid from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      where c.relname='appointments' and n.nspname in (
+        select schema_name from public.businesses where id = any($1::uuid[])))`, [[businessA.id, businessB.id]]);
+  assert.equal(constraints.rows[0].total, 2, 'Each business must have its own overlap constraint');
   assert.deepEqual((await expectStatus('/api/businesses', { token: a }, 200)).map(item => item.id), [businessA.id]);
   await expectStatus(`/api/businesses/${businessB.id}/workspace`, { token: a }, 404);
   await expectStatus(`/api/businesses/${businessB.id}/resources`, { token: a, method: 'POST', body: { name: 'Intruder' } }, 404);
@@ -74,6 +80,14 @@ test('pilot flows: identity, tenant access and public booking', async () => {
   assert.ok(aWorkspace.appointments.length >= 2);
   assert.equal(bWorkspace.appointments.length, 0);
   assert.equal(bWorkspace.customers.length, 0);
+  // The second business must reject duplicate slots too, while remaining
+  // independent of the first business's bookings at the same clock time.
+  const resourceB = await expectStatus(`/api/businesses/${businessB.id}/resources`, { token: b, method: 'POST', body: { name: 'Pilot B Room', resourceType: 'Room' } }, 201);
+  const serviceB = await expectStatus(`/api/businesses/${businessB.id}/services`, { token: b, method: 'POST', body: { name: 'Pilot B Session', price: 10, durationMinutes: 30, resourceIds: [resourceB.id] } }, 201);
+  const bookingB = { ...appointment, resourceId: resourceB.id, serviceId: serviceB.id };
+  const publicB = `/api/public/businesses/${businessB.publicId}/appointments`;
+  await expectStatus(publicB, { method: 'POST', body: bookingB }, 201);
+  await expectStatus(publicB, { method: 'POST', body: bookingB }, 409);
 });
 
 

@@ -7,12 +7,15 @@ import { z } from 'zod';
 import { pool, provisionTenant, schemaNameFor, withTenant } from './database.js';
 import { hashPassword, requireAuth, signToken, verifyPassword } from './auth.js';
 import { createPasswordResetHandlers } from './password-reset.js';
+import { assertPreviewDatabase, previewUIMiddleware } from './preview-ui.js';
 
 if (!process.env.DATABASE_URL || !process.env.JWT_SECRET) throw new Error('DATABASE_URL and JWT_SECRET are required');
+assertPreviewDatabase();
 
 const app = express();
+app.use(previewUIMiddleware());
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_ORIGIN?.split(',') ?? true }));
+app.use(cors({ origin: process.env.CLIENT_ORIGIN?.split(',') ?? (process.env.VERCEL_ENV === 'preview' ? false : true) }));
 app.use(express.json({ limit: '100kb' }));
 
 const credentials = z.object({ email: z.string().email().transform(value => value.toLowerCase()), password: z.string().min(8).max(128) });
