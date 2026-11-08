@@ -7,3 +7,4 @@ Thumbs.db
 server/node_modules/
 server/test/browser/node_modules/
 server/test/browser/artifacts/
+.pilot-state/

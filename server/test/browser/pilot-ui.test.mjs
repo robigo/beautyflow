@@ -50,7 +50,7 @@ before(async () => {
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   origin = `http://127.0.0.1:${server.address().port}`;
-  browser = await chromium.launch();
+  browser = await chromium.launch({ executablePath: process.env.BEAUTYFLOW_TEST_BROWSER || undefined });
 });
 after(async () => {
   await browser?.close();

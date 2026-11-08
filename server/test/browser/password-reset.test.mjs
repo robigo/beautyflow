@@ -8,7 +8,7 @@ const html = await readFile(new URL('../../../reset-password.html', import.meta.
 const token = 'b'.repeat(64);
 
 test('reset UI: requests, errors, fragment privacy, password confirmation and mobile layout', async t => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ executablePath: process.env.BEAUTYFLOW_TEST_BROWSER || undefined });
   t.after(() => browser.close());
   const context = await browser.newContext({ viewport: { width: 375, height: 812 }, serviceWorkers: 'block' });
   const calls = [];
