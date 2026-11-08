@@ -52,6 +52,9 @@ test('generated hosted Preview UI registers, persists prices and resets through 
   };
   await page.goto(origin+'/');
   assert(await page.locator('[data-hosted-preview]').isVisible());
+  assert(await page.locator('[data-hosted-preview]').evaluate(el=>{
+    const box=el.getBoundingClientRect();return el.contains(document.elementFromPoint(box.left+5,box.top+5));
+  }), 'Preview banner must remain visible above the login overlay');
   await page.locator('#ownerAuthSwitch').click();
   await page.locator('#ownerEmail').fill(email);await page.locator('#ownerPassword').fill(password);
   const register=page.waitForResponse(r=>r.url()===origin+'/api/auth/register');

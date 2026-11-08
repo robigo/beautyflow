@@ -24,7 +24,7 @@ export async function buildPreviewUI(output = previewDirectory) {
       .replaceAll('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', '/vendor/supabase.js')
       .replaceAll('https://cdn.jsdelivr.net/npm/chart.js', '/vendor/chart.js')
       .replace(/https:\/\/[a-z0-9]+\.supabase\.co/g, 'https://preview-disabled.invalid');
-    html = html.replace(/<body([^>]*)>/i, '<body$1><div data-hosted-preview style="padding:12px;background:#fff0bd;text-align:center;font:16px Arial;direction:rtl">BeautyFlow — סביבת בדיקה נפרדת · נתוני בדיקה בלבד</div>');
+    html = html.replace(/<body([^>]*)>/i, '<body$1><div data-hosted-preview style="position:relative;z-index:20;padding:12px;background:#fff0bd;text-align:center;font:16px Arial;direction:rtl">BeautyFlow — סביבת בדיקה נפרדת · נתוני בדיקה בלבד</div>');
     if (html.includes('https://beautyflow-ihl7.vercel.app') || /https:\/\/[a-z0-9]+\.supabase\.co/.test(html)) {
       throw new Error('A live API/database address remains in the generated Preview UI');
     }
