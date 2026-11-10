@@ -1,5 +1,5 @@
 create extension if not exists pgcrypto;
-create extension if not exists btree_gist;
+create extension if not exists btree_gist with schema public;
 
 create table if not exists business_settings (
   id boolean primary key default true check (id), brand_color text not null default '#d85f91',
@@ -63,7 +63,8 @@ alter table appointments add constraint appointments_ends_after_starts_check che
 create index if not exists appointments_starts_at_idx on appointments(starts_at);
 create index if not exists appointments_resource_starts_at_idx on appointments(resource_id, starts_at);
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'appointments_resource_time_exclusion') then
+  if not exists (select 1 from pg_constraint where conname = 'appointments_resource_time_exclusion'
+                 and conrelid = 'appointments'::regclass) then
     alter table appointments add constraint appointments_resource_time_exclusion
       exclude using gist (resource_id with =, tstzrange(starts_at, ends_at, '[)') with &&)
       where (status <> 'בוטל' and resource_id is not null);

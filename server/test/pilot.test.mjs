@@ -42,6 +42,12 @@ test('pilot flows: identity, tenant access and public booking', async () => {
   const businessA = await expectStatus('/api/businesses', { token: a, method: 'POST', body: { name: 'Pilot A', businessType: 'Studio' } }, 201);
   const businessB = await expectStatus('/api/businesses', { token: b, method: 'POST', body: { name: 'Pilot B', businessType: 'Studio' } }, 201);
   assert.notEqual(businessA.id, businessB.id);
+  const constraints = await pool.query(`select count(*)::int as total from pg_constraint
+    where conname='appointments_resource_time_exclusion' and conrelid in (
+      select c.oid from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      where c.relname='appointments' and n.nspname in (
+        select schema_name from public.businesses where id = any($1::uuid[])))`, [[businessA.id, businessB.id]]);
+  assert.equal(constraints.rows[0].total, 2, 'Each business must have its own overlap constraint');
   assert.deepEqual((await expectStatus('/api/businesses', { token: a }, 200)).map(item => item.id), [businessA.id]);
   await expectStatus(`/api/businesses/${businessB.id}/workspace`, { token: a }, 404);
   await expectStatus(`/api/businesses/${businessB.id}/resources`, { token: a, method: 'POST', body: { name: 'Intruder' } }, 404);
@@ -74,4 +80,66 @@ test('pilot flows: identity, tenant access and public booking', async () => {
   assert.ok(aWorkspace.appointments.length >= 2);
   assert.equal(bWorkspace.appointments.length, 0);
   assert.equal(bWorkspace.customers.length, 0);
+  // The second business must reject duplicate slots too, while remaining
+  // independent of the first business's bookings at the same clock time.
+  const resourceB = await expectStatus(`/api/businesses/${businessB.id}/resources`, { token: b, method: 'POST', body: { name: 'Pilot B Room', resourceType: 'Room' } }, 201);
+  const serviceB = await expectStatus(`/api/businesses/${businessB.id}/services`, { token: b, method: 'POST', body: { name: 'Pilot B Session', price: 10, durationMinutes: 30, resourceIds: [resourceB.id] } }, 201);
+  const bookingB = { ...appointment, resourceId: resourceB.id, serviceId: serviceB.id };
+  const publicB = `/api/public/businesses/${businessB.publicId}/appointments`;
+  await expectStatus(publicB, { method: 'POST', body: bookingB }, 201);
+  await expectStatus(publicB, { method: 'POST', body: bookingB }, 409);
+});
+
+
+test('password reset with real local PostgreSQL: delivery, expiry, replay and session revocation', async t => {
+  const originalFetch = globalThis.fetch;
+  const previous = Object.fromEntries(['RESEND_API_KEY', 'PASSWORD_RESET_FROM', 'PASSWORD_RESET_URL'].map(key => [key, process.env[key]]));
+  process.env.RESEND_API_KEY = 'disposable-test-mail-key';
+  process.env.PASSWORD_RESET_FROM = 'BeautyFlow <reset@example.test>';
+  process.env.PASSWORD_RESET_URL = 'https://example.test/reset-password.html';
+  let deliveredToken, deliveries = 0;
+  globalThis.fetch = async (url, options) => {
+    if (String(url) === 'https://api.resend.com/emails') {
+      const message = JSON.parse(options.body);
+      const link = message.text.match(/https:\/\/example\.test\/reset-password\.html#token=([a-f0-9]{64})/);
+      assert.ok(link);
+      deliveredToken = link[1];
+      deliveries++;
+      return new Response('{}', { status: 200 });
+    }
+    assert.ok(String(url).startsWith(base + '/'), 'No external test requests allowed');
+    return originalFetch(url, options);
+  };
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  });
+  const email = `reset-${crypto.randomUUID()}@example.test`;
+  const password = 'old-test-password-123', replacement = 'new-test-password-456';
+  const registered = await expectStatus('/api/auth/register', { method: 'POST', body: { email, password } }, 201);
+  const post = (path, body, status) => expectStatus(path, { method: 'POST', body }, status);
+  const known = await post('/api/auth/forgot-password', { email }, 200);
+  const first = deliveredToken;
+  const unknown = await post('/api/auth/forgot-password', { email: `absent-${crypto.randomUUID()}@example.test` }, 200);
+  assert.deepEqual(known, unknown);
+  assert.equal(deliveries, 1);
+  const stored = (await pool.query('select password_reset_token_hash, password_reset_expires_at from public.app_users where email = $1', [email])).rows[0];
+  assert.equal(stored.password_reset_token_hash, crypto.createHash('sha256').update(first).digest('hex'));
+  assert.ok(stored.password_reset_expires_at > new Date());
+  await post('/api/auth/forgot-password', { email }, 200);
+  const second = deliveredToken;
+  assert.notEqual(second, first);
+  await post('/api/auth/reset-password', { token: first, password: replacement }, 400);
+  await pool.query("update public.app_users set password_reset_expires_at = now() - interval '1 minute' where email = $1", [email]);
+  await post('/api/auth/reset-password', { token: second, password: replacement }, 400);
+  await post('/api/auth/forgot-password', { email }, 200);
+  const current = deliveredToken;
+  await post('/api/auth/reset-password', { token: current, password: replacement }, 200);
+  await post('/api/auth/reset-password', { token: current, password: replacement }, 400);
+  await expectStatus('/api/businesses', { token: registered.token }, 401);
+  await post('/api/auth/login', { email, password }, 401);
+  const login = await post('/api/auth/login', { email, password: replacement }, 200);
+  assert.deepEqual(await expectStatus('/api/businesses', { token: login.token }, 200), []);
 });

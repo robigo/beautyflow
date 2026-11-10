@@ -6,12 +6,16 @@ import helmet from 'helmet';
 import { z } from 'zod';
 import { pool, provisionTenant, schemaNameFor, withTenant } from './database.js';
 import { hashPassword, requireAuth, signToken, verifyPassword } from './auth.js';
+import { createPasswordResetHandlers } from './password-reset.js';
+import { assertPreviewDatabase, previewUIMiddleware } from './preview-ui.js';
 
 if (!process.env.DATABASE_URL || !process.env.JWT_SECRET) throw new Error('DATABASE_URL and JWT_SECRET are required');
+assertPreviewDatabase();
 
 const app = express();
+app.use(previewUIMiddleware());
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_ORIGIN?.split(',') ?? true }));
+app.use(cors({ origin: process.env.CLIENT_ORIGIN?.split(',') ?? (process.env.VERCEL_ENV === 'preview' ? false : true) }));
 app.use(express.json({ limit: '100kb' }));
 
 const credentials = z.object({ email: z.string().email().transform(value => value.toLowerCase()), password: z.string().min(8).max(128) });
@@ -40,6 +44,10 @@ async function ownedBusiness(userId, businessId) {
 
 app.get(['/health', '/api/health'], asyncRoute(async (_req, res) => { await pool.query('select 1'); res.json({ ok: true }); }));
 
+const passwordReset = createPasswordResetHandlers({ pool, hashPassword });
+app.post('/api/auth/forgot-password', asyncRoute(passwordReset.forgot));
+app.post('/api/auth/reset-password', asyncRoute(passwordReset.reset));
+
 app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const { email, password } = credentials.parse(req.body);
   const passwordHash = await hashPassword(password);
@@ -58,7 +66,7 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
 
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const { email, password } = credentials.parse(req.body);
-  const { rows } = await pool.query('select id, email, password_hash, is_platform_admin from public.app_users where email = $1', [email]);
+  const { rows } = await pool.query('select id, email, password_hash, is_platform_admin, token_version from public.app_users where email = $1', [email]);
   const user = rows[0];
   if (!user || !(await verifyPassword(password, user.password_hash))) return res.status(401).json({ error: 'אימייל או סיסמה שגויים' });
   const isPlatformAdmin = user.is_platform_admin || isPlatformAdminEmail(user.email);
@@ -301,3 +309,4 @@ if (!process.env.VERCEL) {
 }
 
 export default app;
+
