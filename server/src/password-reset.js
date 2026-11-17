@@ -1,12 +1,23 @@
 import crypto from 'node:crypto';
+import nodemailer from 'nodemailer';
 
 export const resetMessage = 'אם קיים חשבון עם הכתובת הזו, יישלח אליו קישור לאיפוס סיסמה. הקישור תקף ל־30 דקות.';
 const invalidLink = () => Object.assign(new Error('הקישור אינו תקין או שפג תוקפו. יש לבקש קישור חדש.'), { statusCode: 400 });
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 
 export function resetConfig(env = process.env) {
-  if (!env.RESEND_API_KEY || !env.PASSWORD_RESET_FROM || !env.PASSWORD_RESET_URL) {
-    throw Object.assign(new Error('שירות איפוס הסיסמה אינו זמין כרגע. נסו שוב מאוחר יותר.'), { statusCode: 503 });
+  const provider = env.PASSWORD_RESET_MAIL_PROVIDER?.trim().toLowerCase() || 'resend';
+  const unavailable = () => Object.assign(new Error('שירות איפוס הסיסמה אינו זמין כרגע. נסו שוב מאוחר יותר.'), { statusCode: 503 });
+  if (!env.PASSWORD_RESET_URL || !['gmail', 'resend'].includes(provider)) throw unavailable();
+  let mailConfig;
+  if (provider === 'gmail') {
+    const user = env.GMAIL_USER?.trim().toLowerCase();
+    const pass = env.GMAIL_APP_PASSWORD?.replace(/\s/g, '');
+    if (!user || !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(user) || !pass || !/^[a-z0-9]{16}$/i.test(pass)) throw unavailable();
+    mailConfig = { user, pass, from: { name: 'BeautyFlow', address: user } };
+  } else {
+    if (!env.RESEND_API_KEY || !env.PASSWORD_RESET_FROM) throw unavailable();
+    mailConfig = { apiKey: env.RESEND_API_KEY, from: env.PASSWORD_RESET_FROM };
   }
   const url = new URL(env.PASSWORD_RESET_URL);
   if (url.username || url.password || (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname)))) {
@@ -14,18 +25,37 @@ export function resetConfig(env = process.env) {
   }
   url.search = '';
   url.hash = '';
-  return { apiKey: env.RESEND_API_KEY, from: env.PASSWORD_RESET_FROM, url };
+  return { ...mailConfig, provider, url };
 }
 
-export async function sendResetEmail({ email, token, config }, fetcher = fetch) {
+export async function sendResetEmail({ email, token, config }, fetcher = fetch, createTransport = nodemailer.createTransport) {
   const url = new URL(config.url);
   url.hash = new URLSearchParams({ token }).toString();
+  const message = {
+    from: config.from, to: email, subject: 'איפוס הסיסמה שלך ב־BeautyFlow',
+    text: 'להגדרת סיסמה חדשה, פתחו את הקישור הבא:\n' + url.href + '\n\nהקישור חד־פעמי ותקף ל־30 דקות. אם לא ביקשתם איפוס, אפשר להתעלם מההודעה.'
+  };
+  if (config.provider === 'gmail') {
+    const transport = createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: config.user, pass: config.pass },
+      connectionTimeout: 5000, greetingTimeout: 5000, socketTimeout: 5000,
+      disableFileAccess: true, disableUrlAccess: true, logger: false, debug: false
+    });
+    try {
+      // Await SMTP completion before Vercel finishes this request.
+      const result = await transport.sendMail(message);
+      if (!result.accepted?.length || result.rejected?.length) throw new Error('Password reset mail delivery failed');
+    } finally {
+      transport.close();
+    }
+    return;
+  }
   const response = await fetcher('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + config.apiKey, 'Content-Type': 'application/json', 'Idempotency-Key': 'password-reset/' + digest(token) },
     body: JSON.stringify({
-      from: config.from, to: [email], subject: 'איפוס הסיסמה שלך ב־BeautyFlow',
-      text: 'להגדרת סיסמה חדשה, פתחו את הקישור הבא:\n' + url.href + '\n\nהקישור חד־פעמי ותקף ל־30 דקות. אם לא ביקשתם איפוס, אפשר להתעלם מההודעה.'
+      ...message, to: [email]
     }),
     signal: AbortSignal.timeout(10000)
   });
@@ -94,3 +124,4 @@ export function createPasswordResetHandlers({ pool, hashPassword, sendMail = sen
     }
   };
 }
+
